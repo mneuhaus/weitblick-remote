@@ -107,6 +107,7 @@ targets:
         # Document type for .rdp files; the generated Info.plist keys are merged into it.
         INFOPLIST_FILE: Sources/WeitblickRemote/Support/Info.plist
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Passes the microphone on to the remote Windows PC when the connection allows it."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Connects to Windows PCs on your local network."
         CODE_SIGN_ENTITLEMENTS: Sources/WeitblickRemote/Support/WeitblickRemote.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.weitblick-remote
         MARKETING_VERSION: "1.0.0"
