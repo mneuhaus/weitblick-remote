@@ -5,17 +5,33 @@ import SprungBridge
 @MainActor
 public protocol RDPSessionDelegate: AnyObject {
     func session(_ session: RDPSession, didReceive event: RDPSessionEvent)
+    /// The server shows a certificate that is neither valid nor trusted for this connection. The
+    /// connection waits for the answer (at most `RDPSession.certificateDecisionTimeout`, then it is
+    /// rejected). Default: accept once and log.
+    func session(_ session: RDPSession, decideAbout certificate: ServerCertificate) async -> CertificateDecision
+}
+
+extension RDPSessionDelegate {
+    public func session(_ session: RDPSession, decideAbout certificate: ServerCertificate) async -> CertificateDecision {
+        RDPSession.logAccepting(certificate)
+        return .acceptOnce
+    }
 }
 
 /// One RDP connection. Main-actor API over SprungBridge; events arrive via the delegate.
 @MainActor
 public final class RDPSession {
     public enum State: Equatable, Sendable {
-        case idle, connecting, connected, disconnected
+        case idle, connecting, connected, reconnecting, disconnected
     }
+
+    /// How long a connection waits for the delegate's certificate decision.
+    public nonisolated static let certificateDecisionTimeout: TimeInterval = 120
 
     public weak var delegate: RDPSessionDelegate?
     public private(set) var state: State = .idle
+    /// Why the session ended; set when `.disconnected` is delivered.
+    public private(set) var disconnectReason: DisconnectReason?
     /// Current remote desktop size in pixels.
     public private(set) var desktopSize: PixelSize
     public let configuration: SessionConfiguration
@@ -23,51 +39,61 @@ public final class RDPSession {
     public let clipboard: RemoteClipboard
 
     private let native: SessionHandle
+    private let certificates: CertificateGate
     private var isClosed = false
 
     /// The bridge session, or nil once closed (the bridge treats NULL as a no-op).
     var rawSession: OpaquePointer? { isClosed ? nil : native.raw }
 
-    /// The certificate policy runs on a FreeRDP thread and must decide immediately.
-    public init?(
-        configuration: SessionConfiguration,
-        certificatePolicy: @escaping @Sendable (ServerCertificate) -> Bool = RDPSession.acceptAndLog
-    ) {
+    public init?(configuration: SessionConfiguration) {
         let clipboard = RemoteClipboard()
-        let relay = EventRelay(clipboard: clipboard, certificatePolicy: certificatePolicy)
+        let certificates = CertificateGate(trustedFingerprints: configuration.trustedCertificateFingerprints,
+                                           timeout: Self.certificateDecisionTimeout)
+        let relay = EventRelay(clipboard: clipboard, certificates: certificates)
         var callbacks = relay.makeCallbacks()
-        let values: [String] = [configuration.host, configuration.username, configuration.domain,
-                                configuration.password, configuration.stateDirectory.path]
-        let strings = values.map { strdup($0) }
-        defer { strings.forEach { free($0) } }
         try? FileManager.default.createDirectory(at: configuration.stateDirectory, withIntermediateDirectories: true)
 
+        let strings = BridgeStrings()
+        defer { strings.free() }
+        let drives = configuration.drives.map {
+            SprungDrive(name: strings.copy($0.name), path: strings.copy($0.localPath.path))
+        }
         var config = SprungSessionConfig()
-        config.host = UnsafePointer(strings[0])
+        config.host = strings.copy(configuration.host)
         config.port = configuration.port
-        config.username = UnsafePointer(strings[1])
-        config.domain = UnsafePointer(strings[2])
-        config.password = UnsafePointer(strings[3])
+        config.username = strings.copy(configuration.username)
+        config.domain = strings.copy(configuration.domain)
+        config.password = strings.copy(configuration.password)
         config.width = UInt32(configuration.desktopSize.width)
         config.height = UInt32(configuration.desktopSize.height)
         config.desktopScaleFactor = configuration.scale.desktop
         config.deviceScaleFactor = configuration.scale.device
         config.keyboardLayout = configuration.keyboardLayout
         config.ignoreCertificate = configuration.ignoreCertificate
-        config.audioPlayback = configuration.audioPlayback
+        config.audio = configuration.audio.bridgeValue
+        config.microphone = configuration.microphone
+        config.printers = configuration.printers
         config.clipboard = configuration.clipboard
-        config.stateDirectory = UnsafePointer(strings[4])
+        config.autoReconnect = configuration.autoReconnect
+        config.stateDirectory = strings.copy(configuration.stateDirectory.path)
 
-        guard let raw = sprung_session_create(&config, &callbacks) else { return nil }
+        let created = drives.withUnsafeBufferPointer { list in
+            config.drives = list.baseAddress
+            config.driveCount = list.count
+            return sprung_session_create(&config, &callbacks)
+        }
+        guard let raw = created else { return nil }
         self.native = SessionHandle(raw: raw, relay: relay)
         self.configuration = configuration
         self.clipboard = clipboard
+        self.certificates = certificates
         clipboard.attach(raw)
         self.desktopSize = configuration.desktopSize
         relay.session = self
     }
 
     deinit {
+        certificates.close()
         clipboard.detach()
         native.destroyInBackground()
     }
@@ -79,6 +105,7 @@ public final class RDPSession {
 
     /// Ends the session; `.disconnected` follows.
     public func disconnect() {
+        certificates.close()
         sprung_session_disconnect(rawSession)
     }
 
@@ -86,10 +113,10 @@ public final class RDPSession {
     /// other call is a no-op afterwards.
     public func close() {
         isClosed = true
+        certificates.close()
         clipboard.detach()
         native.destroyInBackground()
     }
-
     /// Closes the session and waits until its bridge thread is gone.
     public func closeAndWait() async {
         close()
@@ -120,7 +147,8 @@ public final class RDPSession {
 
     func handle(_ event: RDPSessionEvent) {
         switch event {
-        case .connected: state = .connected
+        case .connected, .reconnected: state = .connected
+        case .reconnecting: state = .reconnecting
         case .disconnected: state = .disconnected
         case .desktopResized(let size): desktopSize = size
         case .frameReady, .pointer: break
@@ -128,10 +156,52 @@ public final class RDPSession {
         delegate?.session(self, didReceive: event)
     }
 
-    public nonisolated static func acceptAndLog(_ certificate: ServerCertificate) -> Bool {
+    func ended(_ reason: DisconnectReason, code: UInt32, detail: String) {
+        disconnectReason = reason
+        if reason != .requested {
+            Logger.session.notice("Session ended: \(String(describing: reason), privacy: .public) – \(detail, privacy: .public)")
+        }
+        handle(.disconnected(code: code, message: reason.message))
+    }
+
+    /// Asks the delegate about a certificate; `reply` runs exactly once.
+    func ask(about certificate: ServerCertificate, reply: @escaping @Sendable (CertificateDecision) -> Void) {
+        guard let delegate else {
+            Self.logAccepting(certificate)
+            return reply(.acceptOnce)
+        }
+        Task { reply(await delegate.session(self, decideAbout: certificate)) }
+    }
+
+    nonisolated static func logAccepting(_ certificate: ServerCertificate) {
         Logger.session.notice(
             "Accepting certificate of \(certificate.host, privacy: .public):\(certificate.port) (\(certificate.subject, privacy: .public)) sha256 \(certificate.fingerprint, privacy: .public)\(certificate.changed ? " [changed]" : "")")
-        return true
+    }
+}
+
+extension AudioPlayback {
+    var bridgeValue: SprungAudioMode {
+        switch self {
+        case .local: SprungAudioLocal
+        case .remote: SprungAudioRemote
+        case .off: SprungAudioOff
+        }
+    }
+}
+
+/// C strings handed to the bridge for the duration of one call.
+private final class BridgeStrings {
+    private var pointers: [UnsafeMutablePointer<CChar>] = []
+
+    func copy(_ string: String) -> UnsafePointer<CChar> {
+        let pointer = strdup(string)!
+        pointers.append(pointer)
+        return UnsafePointer(pointer)
+    }
+
+    func free() {
+        pointers.forEach { Darwin.free($0) }
+        pointers = []
     }
 }
 

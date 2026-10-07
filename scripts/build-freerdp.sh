@@ -8,6 +8,7 @@ SRC="$ROOT/vendor/FreeRDP"
 BUILD="$ROOT/vendor/build/freerdp"
 PREFIX="$ROOT/vendor/install"
 OPENSSL_ROOT="${OPENSSL_ROOT:-$(brew --prefix openssl@3 2>/dev/null || echo /opt/homebrew/opt/openssl@3)}"
+SDK="$(xcrun --sdk macosx --show-sdk-path)"
 
 if [[ ! -f "$SRC/CMakeLists.txt" ]]; then
   git -C "$ROOT" submodule update --init vendor/FreeRDP
@@ -18,8 +19,8 @@ done
 
 # Channels we ship. Everything else is switched off explicitly so Homebrew
 # libraries found on the build machine can never leak into the app.
-KEEP_CHANNELS=(drdynvc rdpgfx disp cliprdr rdpsnd rdpdr drive)
-DROP_CHANNELS=(ainput audin echo encomsp geometry gfxredir location parallel printer rail
+KEEP_CHANNELS=(drdynvc rdpgfx disp cliprdr rdpsnd audin rdpdr drive printer)
+DROP_CHANNELS=(ainput echo encomsp geometry gfxredir location parallel rail
   rdp2tcp rdpear rdpecam rdpei rdpemsc rdpewa remdesk serial smartcard sshagent telemetry
   tsmf urbdrc video)
 
@@ -71,7 +72,10 @@ FLAGS=(
   -DWITH_SMARTCARD_EMULATE=OFF
   -DWITH_PKCS11=OFF
   -DWITH_FUSE=OFF
-  -DWITH_CUPS=OFF
+  # Printers through the system CUPS (SDK headers; the app links libcups).
+  -DWITH_CUPS=ON
+  -DCUPS_INCLUDE_DIR="$SDK/usr/include"
+  -DCUPS_LIBRARIES="$SDK/usr/lib/libcups.tbd"
   -DWITH_KRB5=OFF
   -DWITH_URIPARSER=OFF
   -DWITH_JSON_DISABLED=ON
@@ -118,7 +122,10 @@ TABLES="$BUILD/channels/client/tables.c"
 for c in "${KEEP_CHANNELS[@]}"; do
   grep -q "\"$c\"" "$TABLES" || { echo "channel $c missing from $TABLES" >&2; exit 1; }
 done
-grep -q '"mac"' "$TABLES" || { echo "rdpsnd mac backend missing from $TABLES" >&2; exit 1; }
+for entry in mac_freerdp_rdpsnd_client_subsystem_entry mac_freerdp_audin_client_subsystem_entry \
+  cups_freerdp_printer_client_subsystem_entry; do
+  grep -q "$entry" "$TABLES" || { echo "backend $entry missing from $TABLES" >&2; exit 1; }
+done
 
 echo "$STAMP_VALUE" > "$STAMP"
 echo "FreeRDP installed to $PREFIX"

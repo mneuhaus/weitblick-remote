@@ -1,22 +1,36 @@
 import AppKit
+import ConnectionStore
 import KeyboardEngine
+import KeyboardEngineCarbon
 import os
 import SprungKit
+import SwiftUI
 
-/// One session window: owns the RDP session, routes keyboard and clipboard to it and keeps the
-/// remote resolution in sync with the window size.
+/// One session window (a tab next to the overview, or its own window). It keeps the window, the
+/// view, the tab status, the key monitor and the shortcut tap for its whole life; every connection
+/// attempt is a `LiveSession`, so signing in again or "Erneut verbinden" stays in the same tab.
 @MainActor
 final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation, RDPSessionDelegate {
-    private let session: RDPSession
-    private let sessionView: SessionView
-    private let keyboard: SessionKeyboard
-    private let clipboard: ClipboardSync
+    let connectionID: UUID
+    private var connection: Connection
+    private let library: ConnectionLibrary
+    private let activity: SessionActivity
+    private let sessionView = SessionView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+    private let overlayView = NSHostingView(rootView: SessionOverlay(phase: .hidden, actions: .init(retry: {}, signIn: {}, closeTab: {})))
+    private let statusIndicator = SessionStatusIndicator()
+    private var live: LiveSession?
+    /// Session menu changes (mode, ⌥ strategy, clipboard) last for this window, across reconnects.
+    private var keyboardConfig: KeyboardConfig
+    private var clipboardEnabled = true
+    /// The credentials of the last attempt, so "Erneut verbinden" works without a saved password.
+    private var lastCredentials: Credentials?
     private var shortcutTap: SystemShortcutTap!
-    private let retina: Bool
     private var keyMonitor: Any?
     private var appObservers: [NSObjectProtocol] = []
     private var pendingResize: DispatchWorkItem?
-    private var finished = false
+    private var pendingCertificate: CheckedContinuation<CertificateDecision, Never>?
+    private var isClosing = false
+    private(set) var status = SessionStatus.connecting
     /// Called once the window has closed.
     var onClose: (() -> Void)?
 
@@ -24,69 +38,154 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
     private static let resizeDebounce: TimeInterval = 0.3
     private static let logger = Logger(subsystem: "nrw.neuhaus.sprung", category: "window")
 
-    /// `configuration.desktopSize` and `scale` are derived from the window; Retina asks for
-    /// one remote pixel per screen pixel at 200 % Windows scaling.
-    init?(configuration: SessionConfiguration, keyboardConfig: KeyboardConfig, retina: Bool) {
+    init(connection: Connection, library: ConnectionLibrary, activity: SessionActivity) {
+        self.connectionID = connection.id
+        self.connection = connection
+        self.library = library
+        self.activity = activity
+        self.keyboardConfig = connection.keyboard
+        clipboardEnabled = connection.redirection.clipboard
+
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let visible = screen.visibleFrame.size
-        let contentSize = NSSize(width: min(1440, visible.width * 0.85).rounded(), height: min(900, visible.height * 0.85).rounded())
-
-        var configuration = configuration
-        let backing = retina ? screen.backingScaleFactor : 1
-        configuration.desktopSize = Self.pixelSize(for: contentSize, backingScale: backing)
-        configuration.scale = Self.remoteScale(backingScale: backing)
-        guard let session = RDPSession(configuration: configuration) else { return nil }
-
+        let contentSize = connection.display.contentSize(backingScale: screen.backingScaleFactor)
+            ?? NSSize(width: min(1440, visible.width * 0.85).rounded(), height: min(900, visible.height * 0.85).rounded())
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: contentSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = configuration.host
+        window.title = connection.name
+        window.tabbingIdentifier = WindowCoordinator.tabbingIdentifier
         window.collectionBehavior = [.fullScreenPrimary]
         window.contentMinSize = NSSize(width: 400, height: 300)
         window.acceptsMouseMovedEvents = true
         window.isReleasedWhenClosed = false
-        window.center()
-
-        self.session = session
-        self.retina = retina
-        self.sessionView = SessionView(frame: NSRect(origin: .zero, size: contentSize))
-        self.keyboard = SessionKeyboard(remote: session, config: keyboardConfig)
-        self.clipboard = ClipboardSync(remote: session.clipboard, pasteboard: .general)
+        window.setFrameAutosaveName("Sitzung \(connection.id.uuidString)")
         super.init(window: window)
         shortcutTap = SystemShortcutTap { [unowned self] event in consumeCapturedKey(event) }
 
-        window.contentView = sessionView
+        let container = NSView(frame: NSRect(origin: .zero, size: contentSize))
+        for view in [sessionView, overlayView] as [NSView] {
+            view.frame = container.bounds
+            view.autoresizingMask = [.width, .height]
+            container.addSubview(view)
+        }
+        window.contentView = container
+        window.tab.accessoryView = statusIndicator
         window.delegate = self
-        sessionView.session = session
-        sessionView.willSendPointerPress = { [unowned self] in keyboard.prepareForPointerEvent() }
-        session.delegate = self
+        sessionView.willSendPointerPress = { [unowned self] in live?.keyboard.prepareForPointerEvent() }
+        setStatus(.connecting)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    var isConnected: Bool { session.state == .connected }
+    private var isConnected: Bool { live?.isConnected ?? false }
 
+    /// Call once the window is on screen (as a tab or on its own): its size decides the desktop size.
     func start() {
-        showWindow(nil)
-        window?.makeFirstResponder(sessionView)
         installKeyMonitor()
         observeApp()
-        window?.subtitle = "Verbinde…"
-        session.connect()
+        if connection.display.startFullscreen, let window, !window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        }
+        connectWithSavedCredentials()
+    }
+
+    /// Brings this session's tab or window to the front.
+    func activate() {
+        guard let window else { return }
+        window.tabGroup?.selectedWindow = window
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    // MARK: Connecting
+
+    private func reconnectWithLastCredentials() {
+        if let lastCredentials { connect(lastCredentials) } else { connectWithSavedCredentials() }
+    }
+
+    private func connectWithSavedCredentials() {
+        let password = library.password(for: connectionID)
+        // With NLA the server checks the password before showing anything: ask first.
+        if !connection.security.disableNLA, password == nil || connection.username.isEmpty {
+            askForCredentials(message: nil)
+            return
+        }
+        connect(Credentials(username: connection.username, domain: connection.domain, password: password ?? ""))
+    }
+
+    private func connect(_ credentials: Credentials, saveAfterLogon: Bool = false) {
+        endLiveSession()
+        if let latest = library.connection(with: connectionID) { connection = latest }
+        setStatus(.connecting)
+        showOverlay(.connecting(host: connection.host))
+        let desktop = connection.display.desktop(forViewSize: sessionView.bounds.size,
+                                                 backingScale: window?.backingScaleFactor ?? 2)
+        let configuration = SessionConfiguration(connection: connection, credentials: credentials, desktop: desktop,
+                                                 macKeyboardLayout: .current)
+        guard let live = LiveSession(configuration: configuration, keyboardConfig: keyboardConfig,
+                                     clipboardEnabled: clipboardEnabled, delegate: self) else {
+            showFailure("Die Sitzung ließ sich nicht anlegen.")
+            return
+        }
+        live.credentialsToSave = saveAfterLogon ? credentials : nil
+        lastCredentials = credentials
+        self.live = live
+        sessionView.session = live.session
+        live.connect()
+    }
+
+    private func askForCredentials(message: String?) {
+        guard let window, window.attachedSheet == nil else { return }
+        setStatus(.disconnected)
+        showOverlay(.signedOut(message: message ?? "Für diese Verbindung ist kein Passwort gesichert."))
+        weak var sheet: NSWindow? // weak: the sheet's own view holds this closure
+        let view = SignInView(
+            connectionName: connection.name, message: message, username: connection.username, domain: connection.domain,
+            onConnect: { [weak self] credentials, save in
+                if let sheet { window.endSheet(sheet) }
+                self?.connect(credentials, saveAfterLogon: save)
+            },
+            onCancel: { if let sheet { window.endSheet(sheet) } })
+        sheet = window.presentSheet(view)
+    }
+
+    /// The server accepted the credentials from the sign-in sheet: keep them if asked to.
+    private func saveAcceptedCredentials(_ live: LiveSession) {
+        guard let credentials = live.credentialsToSave else { return }
+        live.credentialsToSave = nil
+        do {
+            try library.setPassword(credentials.password, for: connectionID)
+        } catch {
+            Self.logger.error("saving password failed: \(String(describing: error), privacy: .public)")
+            presentAlert("Passwort nicht gesichert", "Der Schlüsselbund hat das Passwort nicht angenommen. Die Sitzung läuft trotzdem.")
+        }
+        guard credentials.username != connection.username || credentials.domain != connection.domain else { return }
+        Task {
+            try? await library.modify(connectionID) { stored in
+                stored.username = credentials.username
+                stored.domain = credentials.domain
+            }
+        }
     }
 
     // MARK: RDPSessionDelegate
 
     func session(_ session: RDPSession, didReceive event: RDPSessionEvent) {
+        guard let live, session === live.session else { return }
         switch event {
         case .connected:
-            window?.subtitle = ""
-            if window?.isKeyWindow == true { keyboard.focusGained() }
-            if NSApp.isActive { clipboard.startWatching() }
+            sessionDidConnect(live)
+            saveAcceptedCredentials(live)
+            Task { await library.markConnected(connectionID) }
+        case .reconnecting(let attempt):
+            setStatus(.reconnecting(attempt: attempt))
+            showOverlay(.reconnecting(attempt: attempt))
+            live.keyboard.focusLost()
             updateShortcutCapture()
-            scheduleResolutionUpdate() // the window may have changed while connecting
-        case .disconnected(let code, let message):
-            sessionEnded(code: code, message: message)
+        case .reconnected:
+            sessionDidConnect(live)
+        case .disconnected:
+            sessionEnded(reason: session.disconnectReason ?? .other)
         case .frameReady:
             sessionView.setNeedsPresent()
         case .desktopResized(let size):
@@ -94,33 +193,99 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
             sessionView.setNeedsPresent()
         case .pointer(let pointer):
             sessionView.apply(pointer)
+        @unknown default:
+            break
         }
     }
 
-    private func sessionEnded(code: UInt32, message: String) {
-        guard !finished, let window else { return }
-        finished = true
-        stopInput()
-        guard code != 0 else {
+    func session(_ session: RDPSession, decideAbout certificate: ServerCertificate) async -> CertificateDecision {
+        guard session === live?.session, !isClosing, let window, pendingCertificate == nil else { return .reject }
+        let details = CertificateDetails(certificate)
+        let decision = await withCheckedContinuation { continuation in
+            pendingCertificate = continuation
+            weak var sheet: NSWindow? // weak: the sheet's own view holds this closure
+            sheet = window.presentSheet(CertificateView(certificate: details, connectionName: connection.name) { [weak self] decision in
+                if let sheet { window.endSheet(sheet) }
+                self?.answerCertificate(decision)
+            })
+        }
+        if decision == .acceptPermanently {
+            do {
+                try await library.trust(fingerprint: certificate.fingerprint, for: connectionID, replacing: certificate.changed)
+            } catch {
+                Self.logger.error("storing the certificate failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+        return decision
+    }
+
+    private func answerCertificate(_ decision: CertificateDecision) {
+        let continuation = pendingCertificate
+        pendingCertificate = nil
+        continuation?.resume(returning: decision)
+    }
+
+    private func sessionDidConnect(_ live: LiveSession) {
+        setStatus(.connected)
+        showOverlay(.hidden)
+        window?.makeFirstResponder(sessionView)
+        if window?.isKeyWindow == true { live.keyboard.focusGained() }
+        if NSApp.isActive { live.clipboard.startWatching() }
+        updateShortcutCapture()
+        scheduleResolutionUpdate() // the window may have changed while connecting
+    }
+
+    private func sessionEnded(reason: DisconnectReason) {
+        endLiveSession()
+        updateShortcutCapture()
+        guard !isClosing, let window else { return }
+        if let sheet = window.attachedSheet { window.endSheet(sheet) }
+        answerCertificate(.reject)
+        if reason.isDeliberate {
             window.close()
-            return
+        } else if reason.needsCredentials {
+            askForCredentials(message: reason.message)
+        } else {
+            showFailure(reason.message)
         }
-        Self.logger.error("session ended: \(message, privacy: .public)")
-        let alert = NSAlert()
-        alert.messageText = "Verbindung zu \(session.configuration.host) beendet"
-        alert.informativeText = message
-        alert.beginSheetModal(for: window) { _ in window.close() }
     }
 
-    /// Keyboard, shortcut tap and clipboard let go of the session.
-    private func stopInput() {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        keyMonitor = nil
-        appObservers.forEach(NotificationCenter.default.removeObserver)
-        appObservers = []
-        shortcutTap.stop()
-        keyboard.stop()
-        clipboard.sessionWillEnd()
+    private func showFailure(_ message: String) {
+        setStatus(.disconnected)
+        showOverlay(.failed(message: message))
+    }
+
+    /// Lets go of the current attempt (if any); the window and its last picture stay.
+    private func endLiveSession() {
+        guard let ended = live else { return }
+        live = nil
+        sessionView.session = nil
+        ended.end()
+    }
+
+    // MARK: Status
+
+    private func setStatus(_ status: SessionStatus) {
+        self.status = status
+        statusIndicator.show(status)
+        window?.subtitle = status == .connected ? "" : status.label
+        activity.set(status, for: connectionID)
+    }
+
+    private func showOverlay(_ phase: SessionOverlayPhase) {
+        overlayView.rootView = SessionOverlay(phase: phase, actions: SessionOverlayActions(
+            retry: { [weak self] in self?.reconnectWithLastCredentials() },
+            signIn: { [weak self] in self?.askForCredentials(message: nil) },
+            closeTab: { [weak self] in self?.window?.close() }))
+        overlayView.isHidden = phase == .hidden
+    }
+
+    private func presentAlert(_ title: String, _ text: String) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        alert.beginSheetModal(for: window)
     }
 
     // MARK: Keyboard
@@ -135,20 +300,21 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
         }
     }
 
-    /// Sends a key event of this window to the session unless the engine keeps it for the app.
+    /// Sends a key event of this window to the session unless the engine keeps it for the app
+    /// (⌃⌘F, ⌃⌥⌘… such as the tab shortcuts).
     private func forwardToSession(_ event: NSEvent) -> Bool {
-        guard event.window === window, isConnected, let keyEvent = KeyEvent(event) else { return false }
-        return keyboard.handle(keyEvent)
+        guard event.window === window, let live, live.isConnected, let keyEvent = KeyEvent(event) else { return false }
+        return live.keyboard.handle(keyEvent)
     }
 
     /// Events from the shortcut tap. Reserved shortcuts pass on to AppKit through the monitor.
     private func consumeCapturedKey(_ event: CGEvent) -> Bool {
-        guard shouldCaptureSystemShortcuts else {
+        guard shouldCaptureSystemShortcuts, let live else {
             DispatchQueue.main.async { [weak self] in self?.updateShortcutCapture() }
             return false
         }
-        guard let keyEvent = KeyEvent(event), !keyboard.isReserved(keyEvent) else { return false }
-        return keyboard.handle(keyEvent)
+        guard let keyEvent = KeyEvent(event), !live.keyboard.isReserved(keyEvent) else { return false }
+        return live.keyboard.handle(keyEvent)
     }
 
     private var shouldCaptureSystemShortcuts: Bool {
@@ -182,27 +348,29 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
     private func appStateChanged(_ name: Notification.Name) {
         switch name {
         case NSApplication.didBecomeActiveNotification:
-            guard isConnected else { break }
-            clipboard.checkPasteboard()
-            clipboard.startWatching()
+            guard let live, live.isConnected else { break }
+            live.clipboard.checkPasteboard()
+            live.clipboard.startWatching()
         case NSApplication.didResignActiveNotification:
-            clipboard.stopWatching()
+            live?.clipboard.stopWatching()
         default:
             break
         }
         updateShortcutCapture()
     }
 
+    /// A tab switch makes another window key: this one resigns and lets go of every key.
     func windowDidBecomeKey(_ notification: Notification) {
-        guard isConnected else { return }
-        keyboard.focusGained()
-        clipboard.checkPasteboard()
+        guard let live, live.isConnected else { return }
+        live.keyboard.focusGained()
+        live.clipboard.checkPasteboard()
         updateShortcutCapture()
     }
 
     func windowDidResignKey(_ notification: Notification) {
         updateShortcutCapture()
-        keyboard.focusLost()
+        guard let live, live.isConnected else { return }
+        live.keyboard.focusLost()
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) { updateShortcutCapture() }
@@ -215,25 +383,24 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
     private static let altTab = try! WindowsChord("alt+tab")
     private static let printScreen = try! WindowsChord("printscreen")
 
-    @objc func sendCtrlAltDelete(_ sender: Any?) { keyboard.tap(Self.ctrlAltDelete) }
-    @objc func sendWindowsKey(_ sender: Any?) { keyboard.tap(Self.windowsKey) }
-    @objc func sendAltTab(_ sender: Any?) { keyboard.tap(Self.altTab) }
-    @objc func sendPrintScreen(_ sender: Any?) { keyboard.tap(Self.printScreen) }
+    @objc func sendCtrlAltDelete(_ sender: Any?) { live?.keyboard.tap(Self.ctrlAltDelete) }
+    @objc func sendWindowsKey(_ sender: Any?) { live?.keyboard.tap(Self.windowsKey) }
+    @objc func sendAltTab(_ sender: Any?) { live?.keyboard.tap(Self.altTab) }
+    @objc func sendPrintScreen(_ sender: Any?) { live?.keyboard.tap(Self.printScreen) }
 
     @objc func selectKeyboardMode(_ sender: NSMenuItem) {
-        var config = keyboard.config
-        config.mode = SessionMenu.keyboardModes[sender.tag]
-        keyboard.apply(config)
+        keyboardConfig.mode = SessionMenu.keyboardModes[sender.tag]
+        live?.keyboard.apply(keyboardConfig)
     }
 
     @objc func selectOptionStrategy(_ sender: NSMenuItem) {
-        var config = keyboard.config
-        config.optionStrategy = SessionMenu.optionStrategies[sender.tag]
-        keyboard.apply(config)
+        keyboardConfig.optionStrategy = SessionMenu.optionStrategies[sender.tag]
+        live?.keyboard.apply(keyboardConfig)
     }
 
     @objc func toggleClipboardSync(_ sender: Any?) {
-        clipboard.isEnabled.toggle()
+        clipboardEnabled.toggle()
+        live?.clipboard.isEnabled = clipboardEnabled
     }
 
     @objc func selectSystemShortcutCapture(_ sender: NSMenuItem) {
@@ -241,23 +408,29 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
         NotificationCenter.default.post(name: .systemShortcutCaptureChanged, object: nil)
     }
 
+    @objc func reconnect(_ sender: Any?) {
+        reconnectWithLastCredentials()
+    }
+
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         switch item.action {
         case #selector(selectKeyboardMode(_:)):
-            item.state = SessionMenu.keyboardModes[item.tag] == keyboard.config.mode ? .on : .off
+            item.state = SessionMenu.keyboardModes[item.tag] == keyboardConfig.mode ? .on : .off
+            return true
         case #selector(selectOptionStrategy(_:)):
-            item.state = SessionMenu.optionStrategies[item.tag] == keyboard.config.optionStrategy ? .on : .off
-            return keyboard.config.mode == .macShortcuts
+            item.state = SessionMenu.optionStrategies[item.tag] == keyboardConfig.optionStrategy ? .on : .off
+            return keyboardConfig.mode == .macShortcuts
         case #selector(toggleClipboardSync(_:)):
-            item.state = clipboard.isEnabled ? .on : .off
-            return session.configuration.clipboard
+            item.state = clipboardEnabled ? .on : .off
+            return connection.redirection.clipboard
         case #selector(selectSystemShortcutCapture(_:)):
             item.state = SystemShortcutCapture.allCases[item.tag] == SystemShortcutCapture.setting ? .on : .off
             return true
+        case #selector(reconnect(_:)):
+            return status == .disconnected && window?.attachedSheet == nil
         default:
-            break
+            return isConnected
         }
-        return isConnected
     }
 
     // MARK: Resolution
@@ -267,6 +440,7 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
 
     private func scheduleResolutionUpdate() {
         pendingResize?.cancel()
+        guard connection.display.resizesWithWindow else { return }
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated { self?.sendResolution() }
         }
@@ -275,32 +449,56 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMen
     }
 
     private func sendResolution() {
-        guard isConnected, let window else { return }
-        let backing = retina ? window.backingScaleFactor : 1
-        let size = Self.pixelSize(for: sessionView.bounds.size, backingScale: backing)
-        Self.logger.notice("requesting remote size \(size.description, privacy: .public)")
-        session.setResolution(size, scale: Self.remoteScale(backingScale: backing))
+        guard let live, live.isConnected, let window else { return }
+        let desktop = connection.display.desktop(forViewSize: sessionView.bounds.size, backingScale: window.backingScaleFactor)
+        Self.logger.notice("requesting remote size \(desktop.size.description, privacy: .public)")
+        live.session.setResolution(desktop.size, scale: desktop.scale)
     }
 
-    private static func pixelSize(for points: NSSize, backingScale: CGFloat) -> PixelSize {
-        // RDP wants an even width; the bridge clamps to 200…8192.
-        let width = Int((points.width * backingScale).rounded()) & ~1
-        return PixelSize(width: width, height: Int((points.height * backingScale).rounded()))
-    }
+    // MARK: Closing
 
-    private static func remoteScale(backingScale: CGFloat) -> RemoteScale {
-        RemoteScale(desktop: UInt32((backingScale * 100).rounded()), device: 100)
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard live != nil, AppSettings.confirmCloseSession else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Verbindung zu „\(connection.name)“ trennen?"
+        alert.informativeText = "Der Tab wird geschlossen. Geöffnete Programme laufen unter Windows weiter."
+        alert.addButton(withTitle: "Trennen")
+        alert.addButton(withTitle: "Abbrechen")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Nicht mehr fragen"
+        alert.beginSheetModal(for: sender) { response in
+            guard response == .alertFirstButtonReturn else { return }
+            if alert.suppressionButton?.state == .on { AppSettings.confirmCloseSession = false }
+            sender.close()
+        }
+        return false
     }
-
-    // MARK: Teardown
 
     func windowWillClose(_ notification: Notification) {
+        isClosing = true
         pendingResize?.cancel()
-        if !finished { stopInput() }
+        answerCertificate(.reject)
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+        appObservers.forEach(NotificationCenter.default.removeObserver)
+        appObservers = []
+        shortcutTap.stop()
+        endLiveSession()
         sessionView.tearDown()
-        session.delegate = nil
-        session.close()
+        activity.set(nil, for: connectionID)
         onClose?()
+    }
+}
+
+extension NSWindow {
+    /// Shows a SwiftUI view as a sheet of this window; end it with `endSheet(_:)`.
+    @discardableResult
+    func presentSheet(_ view: some View) -> NSWindow {
+        let controller = NSHostingController(rootView: view)
+        controller.sizingOptions = .preferredContentSize
+        let sheet = NSWindow(contentViewController: controller)
+        beginSheet(sheet)
+        return sheet
     }
 }
 

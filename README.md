@@ -39,13 +39,18 @@ Der Smoke-Test schreibt `build/smoke.png`, `build/smoke-resized.png` und `build/
 Ist an der VM-Konsole jemand angemeldet, bricht `smoke.sh` ab; `--takeover` trennt diese Sitzung vorher
 (`tsdiscon`, die Programme laufen weiter).
 
-Debug-Builds füllen das Verbindungsformular aus `.testvm.env`; `Sprung --autoconnect` verbindet sofort.
+Verbindungen liegen in `~/Library/Application Support/Sprung/connections.json`, Passwörter im Schlüsselbund.
+Zum Ausprobieren ohne die echten Daten: `open -g -n build/Sprung.app --args --store <Datei> --jump-dir <Ordner>`
+(auch `SPRUNG_STORE`, `SPRUNG_JUMP_DIR`). Debug-Builds haben zusätzlich `--debug-…`-Schalter für Screenshots und
+VM-Tests (`Sources/Sprung/App/DebugHooks.swift`), z. B. `--debug-testvm-credentials` (Passwort aus `.testvm.env`
+nur im Speicher) und `--debug-connect <Name>` (nur Test-VM-Netz).
 
 ## Aufbau
 
 - `Sources/SprungBridge` – C-Brücke zu libfreerdp (Sitzung, Eventloop-Thread, Framebuffer, Eingabe)
 - `Sources/SprungKit` – Swift-Hülle `RDPSession` und Zwischenablage-Abgleich, von App und Testwerkzeugen genutzt
-- `Sources/Sprung` – App (AppKit, Formular in SwiftUI)
+- `Sources/Sprung` – App (AppKit-Fenster mit nativen Tabs, Listen/Editor/Dialoge in SwiftUI; `Model/` ist UI-frei und unit-getestet)
+- `Packages/ConnectionStore` – Verbindungen, Schlüsselbund, Jump- und .rdp-Import (M4a)
 - `Sources/SprungSmoke` – Headless-Smoke-Test
 - `Sources/SprungE2E` – Tastatur- und Zwischenablage-E2E-Test gegen die VM
 - `Packages/KeyboardEngine` – Tastaturübersetzung (M2)

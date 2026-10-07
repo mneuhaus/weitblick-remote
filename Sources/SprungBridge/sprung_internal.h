@@ -27,6 +27,12 @@ struct SprungSession {
     pthread_t thread;
     bool threadStarted;
     HANDLE wakeEvent; // wakes the event loop for pending display work
+    // Set by sprung_session_disconnect. FreeRDP's own abort flag is reset by every reconnect
+    // attempt, so the request is remembered here as well.
+    HANDLE stopEvent;
+    atomic_bool stopRequested;
+    bool autoReconnect;
+    atomic_bool certificateRejected;
 
     // Input may be sent only between connect and disconnect.
     pthread_mutex_t inputLock;
@@ -64,6 +70,9 @@ static inline SprungSession *sprung_session_from_context(rdpContext *context) {
     return context ? ((SprungContext *)context)->session : NULL;
 }
 
+// sprung_session_thread.c
+void *sprung_session_thread(void *arg);
+
 // sprung_display.c
 bool sprung_display_install(SprungSession *session);   // PostConnect: GDI, pointers, update hooks
 void sprung_display_uninstall(SprungSession *session); // PostDisconnect
@@ -84,5 +93,15 @@ void sprung_input_set_ready(SprungSession *session, bool ready);
 // sprung_clipboard.c
 void sprung_clipboard_channel_connected(SprungSession *session, CliprdrClientContext *cliprdr);
 void sprung_clipboard_channel_disconnected(SprungSession *session);
+
+// sprung_disconnect.c
+/// Why the session ended, from FreeRDP's last error. `wasConnected`: the session had been up.
+SprungDisconnectReason sprung_disconnect_reason(SprungSession *session, uint32_t error, bool wasConnected);
+/// Whether a dropped session should be reconnected (network loss, not a deliberate end).
+bool sprung_disconnect_is_network_loss(SprungSession *session, uint32_t error);
+
+// sprung_redirection.c
+/// Drives, printers, audio and microphone settings.
+bool sprung_redirection_apply(rdpSettings *settings, const SprungSessionConfig *config);
 
 #endif

@@ -6,12 +6,15 @@ import os
 /// Mac -> Windows: a changed pasteboard (`checkPasteboard`, polled while watching) is announced as a
 /// format list; the server then asks for data, which is read on the main thread and converted and
 /// sent from a background queue. Windows -> Mac: a server format list becomes a lazy pasteboard item
-/// (`RemotePasteboardPromise`); text is prefetched so it survives the session.
+/// (`RemotePasteboardPromise`); text is prefetched so it survives the session. Files: see
+/// `ClipboardFiles`.
 ///
+/// After a reconnect the channel comes up again and the sync announces the pasteboard afresh.
 /// The pasteboard is injected: tests use a private named pasteboard, never `.general`.
 @MainActor
 public final class ClipboardSync: RemoteClipboardDelegate {
     public static let defaultMaxDataSize = 128 << 20
+    public static let defaultMaxFileTransferSize = ClipboardFiles.defaultMaxTransferSize
     /// How long an app reading promised data may wait for the server.
     static let readTimeout: TimeInterval = 10
 
@@ -41,16 +44,21 @@ public final class ClipboardSync: RemoteClipboardDelegate {
     private var ownChangeCount: Int?
     private var announced: [UInt32: (flavor: any ClipboardFlavor, format: WindowsClipboardFormat)] = [:]
     private var promise: RemotePasteboardPromise?
+    private nonisolated let files: ClipboardFiles
     private var poller: DispatchSourceTimer?
-    private static let logger = Logger(subsystem: "nrw.neuhaus.sprung", category: "clipboard")
+    private nonisolated static let logger = Logger(subsystem: "nrw.neuhaus.sprung", category: "clipboard")
 
-    public init(remote: RemoteClipboard, pasteboard: NSPasteboard, maxDataSize: Int = defaultMaxDataSize) {
+    /// `maxDataSize` bounds one clipboard format (text, image, …), `maxFileTransferSize` the total
+    /// of one file copy.
+    public init(remote: RemoteClipboard, pasteboard: NSPasteboard, maxDataSize: Int = defaultMaxDataSize,
+                maxFileTransferSize: UInt64 = defaultMaxFileTransferSize) {
         self.remote = remote
         self.pasteboard = pasteboard
         self.maxDataSize = maxDataSize
         self.fetcher = RemoteDataFetcher(maxSize: maxDataSize) { [remote] formatID in
             remote.request(formatID: formatID)
         }
+        self.files = ClipboardFiles(remote: remote, maxTransferSize: maxFileTransferSize)
         remote.delegate = self
     }
 
@@ -96,10 +104,16 @@ public final class ClipboardSync: RemoteClipboardDelegate {
         guard force || changeCount != lastSeenChangeCount else { return }
         lastSeenChangeCount = changeCount
         announced = [:]
+        files.clearAnnouncement()
         var formats: [RemoteClipboardFormat] = []
         if isEnabled, changeCount != ownChangeCount {
             let types = pasteboard.types ?? []
             var nextRegisteredID = WindowsClipboardFormat.firstRegisteredID
+            if let urls = files.localFileURLs(on: pasteboard), case .registered(let name) = FileGroupDescriptor.format {
+                formats.append(RemoteClipboardFormat(id: nextRegisteredID, name: name))
+                files.announced(urls, as: nextRegisteredID)
+                nextRegisteredID += 1
+            }
             for flavor in flavors where flavor.offers(types) {
                 for format in flavor.windowsFormats {
                     let entry: RemoteClipboardFormat
@@ -124,6 +138,9 @@ public final class ClipboardSync: RemoteClipboardDelegate {
     private func respond(to formatID: UInt32) {
         let remote = remote
         let maxDataSize = maxDataSize
+        if isEnabled, formatID == files.announcedFormatID {
+            return files.respondWithDescriptor(on: responder)
+        }
         guard isEnabled, let entry = announced[formatID], let local = readLocal(entry.flavor) else {
             Self.logger.notice("server asked for format \(formatID), nothing to send")
             responder.async { remote.respond(with: nil) }
@@ -152,18 +169,19 @@ public final class ClipboardSync: RemoteClipboardDelegate {
     private func publish(_ formats: [RemoteClipboardFormat]) {
         guard isEnabled else { return }
         Self.logger.notice("server clipboard: \(formats.map { $0.name ?? String($0.id) }, privacy: .public)")
+        // Copied files (Explorer) come with names and shell formats, but the files are the content.
+        if let descriptor = formats.first(where: FileGroupDescriptor.format.matches) {
+            return files.receive(descriptorFormatID: descriptor.id, using: fetcher) { [weak self] items in
+                self?.write(items, promise: nil)
+            }
+        }
         let offers = Self.offers(for: formats, flavors: flavors)
         guard !offers.isEmpty else { return }
         let promise = RemotePasteboardPromise(offers: offers, fetcher: fetcher, timeout: Self.readTimeout)
         let item = NSPasteboardItem()
         let types = flavors.flatMap(\.macTypes).filter { offers[$0] != nil }
         item.setDataProvider(promise, forTypes: types)
-        pasteboard.clearContents()
-        pasteboard.writeObjects([item])
-        ownChangeCount = pasteboard.changeCount
-        lastSeenChangeCount = ownChangeCount
-        self.promise = promise
-        publishedRemoteChanges += 1
+        write([item], promise: promise)
 
         if let text = offers[.string] {
             let fetcher = fetcher
@@ -171,6 +189,15 @@ public final class ClipboardSync: RemoteClipboardDelegate {
                 _ = fetcher.fetch(formatID: text.formatID, timeout: 30)
             }
         }
+    }
+
+    private func write(_ items: [NSPasteboardItem], promise: RemotePasteboardPromise?) {
+        pasteboard.clearContents()
+        pasteboard.writeObjects(items)
+        ownChangeCount = pasteboard.changeCount
+        lastSeenChangeCount = ownChangeCount
+        self.promise = promise
+        publishedRemoteChanges += 1
     }
 
     /// The Mac types to promise for a server format list. Text wins over images: Office puts a
@@ -207,6 +234,7 @@ public final class ClipboardSync: RemoteClipboardDelegate {
     public nonisolated func remoteClipboard(_ clipboard: RemoteClipboard, didChangeFormats formats: [RemoteClipboardFormat]) {
         // Right away, so a late answer for the old clipboard is never cached for the new one.
         fetcher.reset()
+        files.reset()
         onMain { $0.publish(formats) }
     }
 
@@ -216,6 +244,24 @@ public final class ClipboardSync: RemoteClipboardDelegate {
 
     public nonisolated func remoteClipboard(_ clipboard: RemoteClipboard, didReceive data: Data?) {
         fetcher.deliver(data)
+    }
+
+    public nonisolated func remoteClipboard(_ clipboard: RemoteClipboard, didRequestFile request: RemoteFileRequest) {
+        files.answer(request, on: responder)
+    }
+
+    public nonisolated func remoteClipboard(_ clipboard: RemoteClipboard, didReceiveFile streamID: UInt32, data: Data?) {
+        files.fetcher.deliver(streamID: streamID, data: data)
+    }
+
+    public nonisolated func remoteClipboardDidClose(_ clipboard: RemoteClipboard) {
+        fetcher.reset()
+        files.reset()
+        onMain { sync in
+            sync.channelReady = false
+            sync.announced = [:]
+            sync.files.clearAnnouncement()
+        }
     }
 
     private nonisolated func onMain(_ body: @escaping @MainActor (ClipboardSync) -> Void) {

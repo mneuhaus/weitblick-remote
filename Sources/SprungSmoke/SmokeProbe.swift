@@ -7,6 +7,11 @@ final class SmokeProbe: RDPSessionDelegate {
     let session: RDPSession
     private(set) var isConnected = false
     private(set) var ending: (code: UInt32, message: String)?
+    private(set) var reconnectAttempts: [Int] = []
+    private(set) var reconnects = 0
+    /// The answer to certificate questions, and the certificates asked about.
+    var certificateDecision = CertificateDecision.acceptOnce
+    private(set) var askedCertificates: [ServerCertificate] = []
     private(set) var frameCount = 0
     private(set) var lastFrame = Date.distantPast
     private(set) var resizes: [PixelSize] = []
@@ -24,7 +29,14 @@ final class SmokeProbe: RDPSessionDelegate {
         case .connected:
             isConnected = true
         case .disconnected(let code, let message):
+            isConnected = false
             ending = (code, message)
+        case .reconnecting(let attempt):
+            isConnected = false
+            reconnectAttempts.append(attempt)
+        case .reconnected:
+            isConnected = true
+            reconnects += 1
         case .frameReady:
             frameCount += 1
             lastFrame = Date()
@@ -39,6 +51,11 @@ final class SmokeProbe: RDPSessionDelegate {
         case .pointer:
             break
         }
+    }
+
+    func session(_ session: RDPSession, decideAbout certificate: ServerCertificate) async -> CertificateDecision {
+        askedCertificates.append(certificate)
+        return certificateDecision
     }
 
     /// Polls `condition` until it holds or `timeout` passes, failing early when the session ends.

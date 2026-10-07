@@ -1,14 +1,13 @@
-// Session lifecycle: settings, connect, event loop, teardown, auth and certificate hooks.
+// Session lifecycle: settings, create/connect/disconnect/destroy, auth and certificate hooks.
+// The connection itself runs in sprung_session_thread.c.
 #include "sprung_internal.h"
 
 #include <signal.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <freerdp/channels/channels.h>
 #include <freerdp/client/channels.h>
-#include <freerdp/client/cmdline.h>
 #include <freerdp/constants.h>
 #include <freerdp/event.h>
 #include <winpr/synch.h>
@@ -59,8 +58,8 @@ static void on_post_disconnect(freerdp *instance) {
     sprung_display_uninstall(sprung_session_from_context(context));
 }
 
-// Credentials come from the config. FreeRDP only asks when they are missing, and M1 has no
-// prompt yet, so a request means we cannot log in.
+// Credentials come from the config; the app asks the user before connecting. FreeRDP only asks
+// when they are missing, which ends the connection with "missing credentials".
 static BOOL on_authenticate(freerdp *instance, char **username, char **password, char **domain,
                             rdp_auth_reason reason) {
     (void)username;
@@ -73,7 +72,7 @@ static BOOL on_authenticate(freerdp *instance, char **username, char **password,
 
 static DWORD verify_certificate(freerdp *instance, const char *host, UINT16 port,
                                 const char *commonName, const char *subject, const char *issuer,
-                                const char *fingerprint, bool changed) {
+                                const char *fingerprint, DWORD flags) {
     SprungSession *session = sprung_session_from_context(instance->context);
     const SprungCertificateInfo info = {
         .host = host,
@@ -82,20 +81,23 @@ static DWORD verify_certificate(freerdp *instance, const char *host, UINT16 port
         .subject = subject,
         .issuer = issuer,
         .fingerprint = fingerprint,
-        .changed = changed,
+        .hostnameMismatch = (flags & VERIFY_CERT_FLAG_MISMATCH) != 0,
     };
     const SprungCallbacks *cb = &session->callbacks;
     const bool accept = cb->verifyCertificate ? cb->verifyCertificate(cb->userData, &info) : true;
+    if (!accept)
+        atomic_store(&session->certificateRejected, true);
     return accept ? 2 : 0; // 2 = accept for this session only, never store in FreeRDP's store
 }
 
 static DWORD on_verify_certificate(freerdp *instance, const char *host, UINT16 port,
                                    const char *commonName, const char *subject, const char *issuer,
                                    const char *fingerprint, DWORD flags) {
-    (void)flags;
-    return verify_certificate(instance, host, port, commonName, subject, issuer, fingerprint, false);
+    return verify_certificate(instance, host, port, commonName, subject, issuer, fingerprint, flags);
 }
 
+// Only reached through a stale entry in FreeRDP's store (Sprung never writes one). The app judges
+// changes itself, against the fingerprints it trusts.
 static DWORD on_verify_changed_certificate(freerdp *instance, const char *host, UINT16 port,
                                            const char *commonName, const char *subject,
                                            const char *issuer, const char *newFingerprint,
@@ -104,8 +106,7 @@ static DWORD on_verify_changed_certificate(freerdp *instance, const char *host, 
     (void)oldSubject;
     (void)oldIssuer;
     (void)oldFingerprint;
-    (void)flags;
-    return verify_certificate(instance, host, port, commonName, subject, issuer, newFingerprint, true);
+    return verify_certificate(instance, host, port, commonName, subject, issuer, newFingerprint, flags);
 }
 
 static BOOL on_client_new(freerdp *instance, rdpContext *context) {
@@ -143,9 +144,10 @@ static bool apply_config(rdpSettings *s, const SprungSessionConfig *c) {
            freerdp_settings_set_uint32(s, FreeRDP_ColorDepth, 32) &&
            freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, c->ignoreCertificate) &&
            freerdp_settings_set_bool(s, FreeRDP_CertificateCallbackPreferPEM, FALSE) &&
-           freerdp_settings_set_bool(s, FreeRDP_AudioPlayback, c->audioPlayback) &&
+           sprung_redirection_apply(s, c) &&
            freerdp_settings_set_bool(s, FreeRDP_RedirectClipboard, c->clipboard) &&
-           freerdp_settings_set_bool(s, FreeRDP_AutoReconnectionEnabled, FALSE) &&
+           // Reconnects run in sprung_session_thread.c; the flag makes the server send its cookie.
+           freerdp_settings_set_bool(s, FreeRDP_AutoReconnectionEnabled, c->autoReconnect) &&
            // Graphics pipeline with the codecs we can decode in software. No AVC: there is no
            // H.264 decoder in this build, so rdpgfx advertises AVC_DISABLED.
            freerdp_settings_set_bool(s, FreeRDP_SupportGraphicsPipeline, TRUE) &&
@@ -175,6 +177,7 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
     if (!session)
         return NULL;
     session->callbacks = *callbacks;
+    session->autoReconnect = config->autoReconnect;
     session->desktopScaleFactor = clamp_u32(config->desktopScaleFactor, 100, 500);
     session->deviceScaleFactor = config->deviceScaleFactor ? config->deviceScaleFactor : 100;
     pthread_mutex_init(&session->inputLock, NULL);
@@ -190,7 +193,8 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
 
     session->context = freerdp_client_context_new(&entry);
     session->wakeEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
-    if (!session->context || !session->wakeEvent) {
+    session->stopEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!session->context || !session->wakeEvent || !session->stopEvent) {
         sprung_session_destroy(session);
         return NULL;
     }
@@ -204,77 +208,21 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
     return session;
 }
 
-static void report_disconnect(SprungSession *session, uint32_t error) {
-    const SprungCallbacks *cb = &session->callbacks;
-    if (!cb->disconnected)
-        return;
-    if (error == FREERDP_ERROR_SUCCESS || error == FREERDP_ERROR_CONNECT_CANCELLED) {
-        cb->disconnected(cb->userData, 0, "Disconnected");
-        return;
-    }
-    char message[512];
-    snprintf(message, sizeof(message), "%s (%s)", freerdp_get_last_error_string(error),
-             freerdp_get_last_error_name(error));
-    cb->disconnected(cb->userData, error, message);
-}
-
-static void run_event_loop(SprungSession *session) {
-    rdpContext *context = session->context;
-    HANDLE handles[MAXIMUM_WAIT_OBJECTS] = { 0 };
-
-    while (!freerdp_shall_disconnect_context(context)) {
-        DWORD count = freerdp_get_event_handles(context, handles, ARRAYSIZE(handles) - 1);
-        if (count == 0) {
-            WLog_ERR(SPRUNG_TAG, "freerdp_get_event_handles failed");
-            break;
-        }
-        handles[count++] = session->wakeEvent;
-
-        if (WaitForMultipleObjects(count, handles, FALSE, sprung_resolution_wait_timeout(session)) ==
-            WAIT_FAILED) {
-            WLog_ERR(SPRUNG_TAG, "WaitForMultipleObjects failed");
-            break;
-        }
-        if (!freerdp_check_event_handles(context)) {
-            if (freerdp_get_last_error(context) == FREERDP_ERROR_SUCCESS)
-                WLog_ERR(SPRUNG_TAG, "freerdp_check_event_handles failed");
-            break;
-        }
-        (void)ResetEvent(session->wakeEvent);
-        sprung_resolution_service(session);
-    }
-}
-
-static void *session_thread(void *arg) {
-    SprungSession *session = arg;
-    freerdp *instance = session->context->instance;
-
-    if (freerdp_connect(instance)) {
-        sprung_input_set_ready(session, true);
-        if (session->callbacks.connected)
-            session->callbacks.connected(session->callbacks.userData);
-        run_event_loop(session);
-    }
-
-    const uint32_t error = freerdp_get_last_error(session->context);
-    sprung_input_set_ready(session, false);
-    (void)freerdp_disconnect(instance);
-    report_disconnect(session, error);
-    return NULL;
-}
-
 bool sprung_session_connect(SprungSession *session) {
     if (!session || session->threadStarted)
         return false;
-    if (pthread_create(&session->thread, NULL, session_thread, session) != 0)
+    if (pthread_create(&session->thread, NULL, sprung_session_thread, session) != 0)
         return false;
     session->threadStarted = true;
     return true;
 }
 
 void sprung_session_disconnect(SprungSession *session) {
-    if (session && session->context)
-        (void)freerdp_abort_connect_context(session->context);
+    if (!session || !session->context)
+        return;
+    atomic_store(&session->stopRequested, true);
+    (void)SetEvent(session->stopEvent);
+    (void)freerdp_abort_connect_context(session->context);
 }
 
 void sprung_session_destroy(SprungSession *session) {
@@ -288,6 +236,8 @@ void sprung_session_destroy(SprungSession *session) {
         freerdp_client_context_free(session->context);
     if (session->wakeEvent)
         (void)CloseHandle(session->wakeEvent);
+    if (session->stopEvent)
+        (void)CloseHandle(session->stopEvent);
     region16_uninit(&session->dirty);
     free(session->rectScratch);
     pthread_mutex_destroy(&session->displayLock);

@@ -94,7 +94,7 @@ public struct JumpInputProfileImporter: Sendable {
             }
             if object["mouseOptions"] != nil { warnings.append("Mouse mappings are outside KeyboardEngine; not imported.") }
             if object["modifierDeferDisabled"] as? Bool == true {
-                warnings.append("Disabling modifier deferral cannot be represented without changing Sprung's shortcut mode; flag reported only.")
+                warnings.append("Disabling modifier deferral cannot be represented without changing the app's shortcut mode; flag reported only.")
             }
             if object["osShortcutsDisabled"] as? Bool == true {
                 warnings.append("OS shortcut capture is an app-level setting; flag reported only.")
@@ -161,7 +161,7 @@ public struct JumpInputProfileImporter: Sendable {
             let windows = try WindowsChord(output.joined(separator: "+"))
             // App-reserved Ctrl+Option+Command combinations cannot run as remote rules.
             if mac.modifiers.isSuperset(of: [.control, .option, .command]) || mac.description == "ctrl+cmd+f" {
-                mapping.explanation = "Sprung reserves this trigger locally; remote rule would never execute."
+                mapping.explanation = "The app reserves this trigger locally; remote rule would never execute."
                 return mapping
             }
             let rule = ShortcutRule(mac: mac, windows: [windows])
@@ -171,7 +171,7 @@ public struct JumpInputProfileImporter: Sendable {
                 && from < 0x0200_0000 && !ShortcutRule.defaults.contains(where: { $0.mac == mac })
             mapping.classification = defaultRule || genericCommand ? .builtIn : .customConvertible
             mapping.explanation = "\(mac) -> \(windows). " + (mapping.classification == .builtIn
-                ? "Equals Sprung default; nothing to import." : "Custom rule available for explicit import.") + assumption
+                ? "Equals the default rules; nothing to import." : "Custom rule available for explicit import.") + assumption
             if from >= 0x0200_0000 || to >= 0x0200_0000 {
                 mapping.explanation += " Special keys interpreted as 0x0200 + X11 keysym (inferred)."
             }

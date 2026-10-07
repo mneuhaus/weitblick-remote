@@ -22,15 +22,15 @@ public struct ImportReport: Codable, Hashable, Sendable {
     public init(connections: [ConnectionImportReport] = []) { self.connections = connections }
     public var warningCount: Int { connections.reduce(0) { $0 + $1.warnings.count } }
     public var humanReadable: String {
-        var lines = ["Jump import preview (read-only)",
-                     "Files: \(connections.count); warnings: \(warningCount)"]
+        var lines = ["Jump-Import (Jump-Dateien nur gelesen)",
+                     "Dateien: \(connections.count); Hinweise: \(warningCount)"]
         for item in connections {
-            lines.append("\n\(item.fileName): \(item.connectionName ?? "unreadable") [\(item.action?.rawValue ?? "skipped")]")
-            lines.append("  Imported: " + item.importedFields.sorted().joined(separator: ", "))
+            lines.append("\n\(item.fileName): \(item.connectionName ?? "nicht lesbar") [\(item.action?.rawValue ?? "übersprungen")]")
+            lines.append("  Übernommen: " + item.importedFields.sorted().joined(separator: ", "))
             for field in item.ignoredFields.sorted(by: { $0.field < $1.field }) {
-                lines.append("  Ignored \(field.field): \(field.reason)")
+                lines.append("  Nicht übernommen \(field.field): \(field.reason)")
             }
-            for warning in item.warnings { lines.append("  Warning: \(warning)") }
+            for warning in item.warnings { lines.append("  Hinweis: \(warning)") }
         }
         return lines.joined(separator: "\n") + "\n"
     }

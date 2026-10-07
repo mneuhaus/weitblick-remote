@@ -17,6 +17,18 @@ extern "C" {
 
 typedef struct SprungSession SprungSession;
 
+typedef enum {
+    SprungAudioLocal = 0,  ///< played on the Mac (rdpsnd, macOS backend)
+    SprungAudioRemote = 1, ///< left on the remote computer
+    SprungAudioOff = 2,
+} SprungAudioMode;
+
+/// A local folder shown in the session as \\tsclient\<name>.
+typedef struct {
+    const char *name;
+    const char *path;
+} SprungDrive;
+
 typedef struct {
     const char *host;
     uint16_t port;
@@ -33,9 +45,18 @@ typedef struct {
     /// Windows keyboard layout id (KLID), e.g. 0x0407 for German.
     uint32_t keyboardLayout;
     bool ignoreCertificate;
-    bool audioPlayback;
+    SprungAudioMode audio;
+    /// Microphone redirection (audin, macOS backend).
+    bool microphone;
+    /// Printer redirection (CUPS printers of the Mac).
+    bool printers;
+    /// Drive redirection; strings are copied.
+    const SprungDrive *drives;
+    size_t driveCount;
     /// Loads the clipboard channel (cliprdr); see the clipboard callbacks and functions.
     bool clipboard;
+    /// Reconnects with backoff when the network drops (never after a user, server or credential end).
+    bool autoReconnect;
     /// Directory for FreeRDP's own state (certificate and license stores). Keeps Sprung
     /// away from ~/.config/freerdp; NULL uses that default.
     const char *stateDirectory;
@@ -63,17 +84,42 @@ typedef struct {
     const char *issuer;
     /// SHA-256 fingerprint as colon-separated hex.
     const char *fingerprint;
-    /// True if the server presented a different certificate than the stored one.
-    bool changed;
+    /// The certificate does not name the host we connected to.
+    bool hostnameMismatch;
 } SprungCertificateInfo;
+
+/// Why a session ended; the mapping from FreeRDP errors is in sprung_disconnect.c.
+typedef enum {
+    SprungDisconnectRequested = 0, ///< sprung_session_disconnect
+    SprungDisconnectHostUnreachable,
+    SprungDisconnectLogonFailed, ///< wrong user name or password
+    SprungDisconnectMissingCredentials,
+    SprungDisconnectAccountLocked,
+    SprungDisconnectAccountRestricted, ///< disabled, expired, or not allowed to log on here
+    SprungDisconnectPasswordExpired,
+    SprungDisconnectAccessDenied,
+    SprungDisconnectCertificateRejected,
+    SprungDisconnectSecurityFailed, ///< TLS or security negotiation
+    SprungDisconnectServerEnded,    ///< the server or an administrator ended the session
+    SprungDisconnectTakenOver,      ///< another connection took the session
+    SprungDisconnectLoggedOff,      ///< the user logged off or disconnected in Windows
+    SprungDisconnectTimeout,
+    SprungDisconnectConnectionLost, ///< network drop (after reconnect attempts, if enabled)
+    SprungDisconnectOther,
+} SprungDisconnectReason;
 
 typedef struct {
     void *userData;
     /// Connection is up; input may be sent from now on.
     void (*connected)(void *userData);
-    /// Session ended. `errorCode` is the FreeRDP last error (0 for a clean, user-initiated
-    /// disconnect); `message` is a readable reason, valid only during the call.
-    void (*disconnected)(void *userData, uint32_t errorCode, const char *message);
+    /// Session ended. `errorCode` is the FreeRDP last error (0 when requested); `detail` is a
+    /// technical description for logs, valid only during the call.
+    void (*disconnected)(void *userData, SprungDisconnectReason reason, uint32_t errorCode, const char *detail);
+    /// The connection dropped; reconnect attempt `attempt` (1, 2, …) starts. Input is off until
+    /// `reconnected`.
+    void (*reconnecting)(void *userData, uint32_t attempt);
+    /// The session is back (same remote session); input works again, all keys are up.
+    void (*reconnected)(void *userData);
     /// New pixels are available. Coalesced: fires once until the framebuffer is acquired.
     void (*frameReady)(void *userData);
     /// The remote desktop changed size (pixels).
@@ -90,7 +136,8 @@ typedef struct {
     void (*pointerSetDefault)(void *userData);
     /// The server moved the cursor (remote pixels).
     void (*pointerPosition)(void *userData, uint32_t x, uint32_t y);
-    /// Return true to accept the certificate for this session only. NULL accepts.
+    /// An unknown certificate (no valid chain). Return true to accept it; FreeRDP never stores it.
+    /// May block (the connection waits), but must return when the session is closed. NULL accepts.
     bool (*verifyCertificate)(void *userData, const SprungCertificateInfo *info);
 
     // Clipboard (only with SprungSessionConfig.clipboard). These fire on the clipboard channel thread.
@@ -106,6 +153,16 @@ typedef struct {
     /// Answer to sprung_session_clipboard_request; `data` is NULL if the server failed. Valid only
     /// during the call.
     void (*clipboardDataReceived)(void *userData, const uint8_t *data, size_t size);
+    /// The server wants part of a file we announced (FileGroupDescriptorW): its size (`sizeOnly`,
+    /// answer 8 bytes little endian) or `length` bytes at `offset`. Answer once with
+    /// sprung_session_clipboard_file_respond, from any thread.
+    void (*clipboardFileRequested)(void *userData, uint32_t streamId, uint32_t fileIndex, bool sizeOnly,
+                                   uint64_t offset, uint32_t length);
+    /// Answer to sprung_session_clipboard_file_request; `data` is NULL if the server failed. Valid
+    /// only during the call.
+    void (*clipboardFileReceived)(void *userData, uint32_t streamId, const uint8_t *data, size_t size);
+    /// The clipboard channel went down (session end or reconnect); requests in flight are lost.
+    void (*clipboardClosed)(void *userData);
 } SprungCallbacks;
 
 /// Locked view of the framebuffer, see sprung_session_framebuffer_acquire.
@@ -186,6 +243,16 @@ bool sprung_session_clipboard_announce(SprungSession *session, const SprungClipb
 bool sprung_session_clipboard_request(SprungSession *session, uint32_t formatId);
 /// Answers clipboardDataRequested; `ok` false reports failure. The data is copied.
 bool sprung_session_clipboard_respond(SprungSession *session, bool ok, const uint8_t *data, size_t size);
+
+// Files over the clipboard (MS-RDPECLIP file streams). Requests carry a caller-chosen stream id that
+// the answer repeats, so several may be in flight.
+/// Asks the server for the size (`sizeOnly`) or `length` bytes at `offset` of file `fileIndex` in
+/// the server's current FileGroupDescriptorW; the answer arrives through clipboardFileReceived.
+bool sprung_session_clipboard_file_request(SprungSession *session, uint32_t streamId, uint32_t fileIndex,
+                                           bool sizeOnly, uint64_t offset, uint32_t length);
+/// Answers clipboardFileRequested; `ok` false reports failure. The data is copied.
+bool sprung_session_clipboard_file_respond(SprungSession *session, uint32_t streamId, bool ok,
+                                           const uint8_t *data, size_t size);
 
 #ifdef __cplusplus
 }

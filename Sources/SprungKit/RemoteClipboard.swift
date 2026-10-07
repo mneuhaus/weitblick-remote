@@ -14,6 +14,17 @@ public struct RemoteClipboardFormat: Hashable, Sendable {
     }
 }
 
+/// What the server asks of a file we announced in a FileGroupDescriptorW.
+public struct RemoteFileRequest: Sendable, Equatable {
+    public var streamID: UInt32
+    /// Index into the announced file list.
+    public var fileIndex: Int
+    /// true: answer with the size (8 bytes little endian), else with `length` bytes at `offset`.
+    public var sizeOnly: Bool
+    public var offset: UInt64
+    public var length: Int
+}
+
 /// Clipboard channel events. They arrive on the channel thread: return quickly and never wait
 /// for the main thread there.
 public protocol RemoteClipboardDelegate: AnyObject, Sendable {
@@ -25,6 +36,12 @@ public protocol RemoteClipboardDelegate: AnyObject, Sendable {
     func remoteClipboard(_ clipboard: RemoteClipboard, didRequestFormat id: UInt32)
     /// Answer to `request(formatID:)`; nil if the server failed.
     func remoteClipboard(_ clipboard: RemoteClipboard, didReceive data: Data?)
+    /// Answer exactly once with `respondFile(streamID:data:)`.
+    func remoteClipboard(_ clipboard: RemoteClipboard, didRequestFile request: RemoteFileRequest)
+    /// Answer to `requestFile`; nil if the server failed.
+    func remoteClipboard(_ clipboard: RemoteClipboard, didReceiveFile streamID: UInt32, data: Data?)
+    /// The channel went down (session end or reconnect); outstanding requests are lost.
+    func remoteClipboardDidClose(_ clipboard: RemoteClipboard)
 }
 
 /// The clipboard channel of one session. Thread safe. Calls return false while the channel is down
@@ -70,6 +87,27 @@ public final class RemoteClipboard: Sendable {
             return data.withUnsafeBytes { bytes in
                 sprung_session_clipboard_respond(
                     session, true, bytes.baseAddress?.assumingMemoryBound(to: UInt8.self), bytes.count)
+            }
+        }
+    }
+
+    /// Asks for part of a file in the server's current file list; the answer carries `request.streamID`.
+    @discardableResult
+    public func requestFile(_ request: RemoteFileRequest) -> Bool {
+        withSession { session in
+            sprung_session_clipboard_file_request(session, request.streamID, UInt32(request.fileIndex),
+                                                  request.sizeOnly, request.offset, UInt32(request.length))
+        }
+    }
+
+    /// Answers a `didRequestFile`; nil reports failure.
+    @discardableResult
+    public func respondFile(streamID: UInt32, data: Data?) -> Bool {
+        withSession { session in
+            guard let data else { return sprung_session_clipboard_file_respond(session, streamID, false, nil, 0) }
+            return data.withUnsafeBytes { bytes in
+                sprung_session_clipboard_file_respond(
+                    session, streamID, true, bytes.baseAddress?.assumingMemoryBound(to: UInt8.self), bytes.count)
             }
         }
     }

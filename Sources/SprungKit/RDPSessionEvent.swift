@@ -3,8 +3,14 @@ import Foundation
 /// Everything a session reports, delivered on the main actor in order.
 public enum RDPSessionEvent: Sendable {
     case connected
-    /// `code` is 0 for a clean, user-initiated disconnect.
+    /// The session is over. `code` is FreeRDP's error code (0 when requested); `message` is German
+    /// text for the user. `RDPSession.disconnectReason` says why.
     case disconnected(code: UInt32, message: String)
+    /// The connection dropped and attempt `attempt` (1, 2, …) to get it back starts. Input is
+    /// dropped until `.reconnected`; release local key state.
+    case reconnecting(attempt: Int)
+    /// Back in the same Windows session; every remote key is up again (send a sync).
+    case reconnected
     /// New pixels are ready; read them with `RDPSession.withFramebuffer`.
     case frameReady
     case desktopResized(PixelSize)
@@ -30,14 +36,4 @@ public struct RemotePointerImage: Sendable {
     public let hotspotY: Int
     /// BGRA32, straight alpha, top-down, `width * 4` bytes per row.
     public let bgra: Data
-}
-
-public struct ServerCertificate: Sendable {
-    public let host: String
-    public let port: UInt16
-    public let commonName: String
-    public let subject: String
-    public let issuer: String
-    public let fingerprint: String
-    public let changed: Bool
 }

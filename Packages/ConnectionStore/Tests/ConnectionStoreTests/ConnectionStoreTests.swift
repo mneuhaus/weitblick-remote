@@ -71,7 +71,9 @@ struct ConnectionStoreTests {
         #expect(await store.search(sortedBy: .recent).map(\.name) == ["Beta", "Alpha"])
         #expect(await store.search("TESTING").map(\.id) == [alpha.id])
         #expect(await store.search("pc0002").map(\.id) == [beta.id])
+        #expect(ConnectionStore.filter(await store.connections, matching: "alpha", sortedBy: .name).map(\.id) == [alpha.id])
         let duplicate = try await store.duplicate(id: beta.id)
+        #expect(duplicate.name == "Beta Kopie")
         #expect(duplicate.id != beta.id)
         #expect(duplicate.importSource == nil)
         #expect(duplicate.lastConnected == nil)
@@ -80,6 +82,23 @@ struct ConnectionStoreTests {
         #expect(await store.connections.count == 2)
         await #expect(throws: ConnectionStoreError.duplicateID(alpha.id)) { try await store.insert(alpha) }
         await #expect(throws: ConnectionStoreError.missingConnection(duplicate.id)) { try await store.delete(id: duplicate.id) }
+    }
+
+    @Test func modifyChangesTheStoredCopyNotAStaleOne() async throws {
+        let temporary = try TemporaryDirectory()
+        let store = ConnectionStore(fileURL: temporary.storeURL)
+        let original = Connection(name: "Alpha", host: "PC0001.example")
+        try await store.insert(original)
+        var edited = original
+        edited.notes = "Edited meanwhile"
+        try await store.update(edited)
+        let when = Date(timeIntervalSinceReferenceDate: 1000)
+        let result = try await store.modify(id: original.id) { $0.lastConnected = when }
+        #expect(result.notes == "Edited meanwhile" && result.lastConnected == when)
+        #expect(try await ConnectionStore(fileURL: temporary.storeURL).load() == [result])
+        await #expect(throws: ConnectionStoreError.missingConnection(edited.id)) {
+            try await ConnectionStore(fileURL: temporary.url.appendingPathComponent("other.json")).modify(id: edited.id) { _ in }
+        }
     }
 
     @Test func builtInLegacyMigrationBacksUpOriginal() async throws {

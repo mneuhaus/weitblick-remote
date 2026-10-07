@@ -46,8 +46,10 @@ struct TestVM {
         throw E2EFailure("timed out waiting for \(path) in the VM")
     }
 
-    /// A clean slate for a run: no Notepad (and no restored Notepad tabs), fresh scripts, no old results.
-    func prepare(script: Data) throws {
+    /// A clean slate for a run: network up, no Notepad (and no restored Notepad tabs), fresh scripts,
+    /// no old results.
+    func prepare(scripts: [String: Data]) throws {
+        try setNetwork(connected: true)
         let notepadState = #"C:\Users\\#(Self.sessionUser)\AppData\Local\Packages\Microsoft.WindowsNotepad_8wekyb3d8bbwe\LocalState"#
         // Two short commands: see `write` for prlctl's command-line limit.
         try powershell("""
@@ -61,16 +63,34 @@ struct TestVM {
         try powershell("""
             New-Item -ItemType Directory -Force '\(Self.directory)' | Out-Null
             icacls '\(Self.directory)' /grant '\(Self.sessionUser):(OI)(CI)M' | Out-Null
-            Remove-Item -Force -ErrorAction SilentlyContinue '\(Self.directory)\\*'
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue '\(Self.directory)\\*'
             """)
-        try write(script, to: "\(Self.directory)\\clip.ps1")
+        for (name, data) in scripts.sorted(by: { $0.key < $1.key }) {
+            try write(data, to: "\(Self.directory)\\\(name)")
+        }
     }
 
     func isNotepadRunning() throws -> Bool {
-        try powershell("""
-            (Get-Process notepad -IncludeUserName -ErrorAction SilentlyContinue |
-              Where-Object { $_.UserName -like '*\\\(Self.sessionUser)' } | Measure-Object).Count
-            """).trimmingCharacters(in: .whitespacesAndNewlines) != "0"
+        try notepadProcessID() != nil
+    }
+
+    /// The session user's Notepad, if one runs.
+    func notepadProcessID() throws -> Int? {
+        Int(try powershell("""
+            Get-Process notepad -IncludeUserName -ErrorAction SilentlyContinue |
+              Where-Object { $_.UserName -like '*\\\(Self.sessionUser)' } | Select-Object -First 1 -ExpandProperty Id
+            """).trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Plugs the VM's network adapter in or out (Parallels only; the Mac's networking is untouched).
+    func setNetwork(connected: Bool) throws {
+        // prlctl fails on a device that is already in the wanted state; `list -i` shows
+        // "net0 (+) … state=disconnected" while unplugged.
+        let adapter = try prlctl(["list", "-i", Self.name]).split(whereSeparator: \.isNewline)
+            .first { $0.trimmingCharacters(in: .whitespaces).hasPrefix("net0 ") } ?? ""
+        let isConnected = !adapter.contains("state=disconnected")
+        guard isConnected != connected else { return }
+        try prlctl(["set", Self.name, connected ? "--device-connect" : "--device-disconnect", "net0"])
     }
 
     @discardableResult

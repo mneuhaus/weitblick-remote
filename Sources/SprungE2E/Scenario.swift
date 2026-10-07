@@ -7,20 +7,29 @@ import SprungKit
 /// from files the in-session script writes (read with prlctl).
 @MainActor
 final class Scenario {
-    private let vm: TestVM
-    private let probe: SmokeProbe
-    private let keyboard: KeyboardDriver
-    private let clipboard: ClipboardSync
-    private let pasteboard: NSPasteboard
-    private let evidence: URL
+    let vm: TestVM
+    let probe: SmokeProbe
+    let keyboard: KeyboardDriver
+    let clipboard: ClipboardSync
+    let pasteboard: NSPasteboard
+    let evidence: URL
+    /// The local folder redirected as \\tsclient\sprung-e2e, and scratch space for test files.
+    let share: URL
+    let scratch: URL
+    /// FreeRDP's log (rdpsnd at debug level, see main.swift).
+    let freerdpLog: URL
     private(set) var failures: [String] = []
     private var checks = 0
 
-    init(vm: TestVM, probe: SmokeProbe, pasteboard: NSPasteboard, evidence: URL) throws {
+    init(vm: TestVM, probe: SmokeProbe, pasteboard: NSPasteboard, evidence: URL, share: URL, scratch: URL,
+         freerdpLog: URL) throws {
         self.vm = vm
         self.probe = probe
         self.pasteboard = pasteboard
         self.evidence = evidence
+        self.share = share
+        self.scratch = scratch
+        self.freerdpLog = freerdpLog
         keyboard = try KeyboardDriver(remote: probe.session)
         clipboard = ClipboardSync(remote: probe.session.clipboard, pasteboard: pasteboard)
     }
@@ -41,6 +50,12 @@ final class Scenario {
         try await rtfFromMacToWindows()
         try await rtfFromWindowsToMac()
         try await htmlFromWindowsToMac()
+        try await driveRedirection()
+        try await redirectedPrinters()
+        try await audioPlayback()
+        try await filesFromMacToWindows()
+        try await filesFromWindowsToMac()
+        try await reconnectAfterNetworkDrop()
         clipboard.sessionWillEnd()
     }
 
@@ -210,17 +225,17 @@ final class Scenario {
 
     // MARK: Helpers
 
-    private func stroke(_ modifier: KeyboardDriver.Modifier, _ keyCode: UInt16) -> KeyboardDriver.Stroke {
+    func stroke(_ modifier: KeyboardDriver.Modifier, _ keyCode: UInt16) -> KeyboardDriver.Stroke {
         KeyboardDriver.Stroke(keyCode: keyCode, modifiers: [modifier])
     }
 
-    private func clearNotepad() async throws {
+    func clearNotepad() async throws {
         try await keyboard.shortcut([.command], "a")
         try await keyboard.press(KeyboardDriver.Stroke(keyCode: KeyboardDriver.backspace))
     }
 
     /// ⌘A ⌘C in the session, then the text as it arrives on the Mac pasteboard.
-    private func copyAll() async throws -> String {
+    func copyAll() async throws -> String {
         let before = clipboard.publishedRemoteChanges
         try await keyboard.shortcut([.command], "a")
         try await keyboard.shortcut([.command], "c")
@@ -228,12 +243,12 @@ final class Scenario {
         return pasteboard.string(forType: .string) ?? "<no text>"
     }
 
-    private func waitForRemoteClipboard(after count: Int) async throws {
+    func waitForRemoteClipboard(after count: Int) async throws {
         try await probe.wait("server clipboard", timeout: 15) { self.clipboard.publishedRemoteChanges > count }
     }
 
     /// Puts content on the private pasteboard and waits until the server took the format list.
-    private func announce(_ write: (NSPasteboard) -> Void) async throws {
+    func announce(_ write: (NSPasteboard) -> Void) async throws {
         let before = clipboard.acceptedAnnouncements
         pasteboard.clearContents()
         write(pasteboard)
@@ -241,34 +256,34 @@ final class Scenario {
         try await probe.wait("format list accepted", timeout: 10) { self.clipboard.acceptedAnnouncements > before }
     }
 
-    private func runDialog(_ command: String) async throws {
+    func runDialog(_ command: String) async throws {
         try await keyboard.tap("win+r")
         try await Task.sleep(for: .seconds(1.5))
         try await keyboard.type(command + "\n")
     }
 
-    /// Runs `clip.ps1 <action>` in the session and returns what it reported.
-    private func runScript(_ action: String) async throws -> String {
+    /// Runs `clip.ps1 <action>` (or `files.ps1`) in the session and returns what it reported.
+    func runScript(_ action: String, files: Bool = false, timeout: TimeInterval = 45) async throws -> String {
         let name = action.split(separator: " ").first.map(String.init) ?? action
         let done = TestVM.directory + "\\\(name).done"
         try vm.powershell("Remove-Item -Force -ErrorAction SilentlyContinue '\(done)', '\(TestVM.directory)\\dump.b64', '\(TestVM.directory)\\image.png'")
-        try await runDialog(SessionScript.command(action))
-        let result = try await vm.waitForFile(done, timeout: 45)
+        try await runDialog(files ? FileScript.command(action) : SessionScript.command(action))
+        let result = try await vm.waitForFile(done, timeout: timeout)
         log("\(name): \(result)")
         if result.hasPrefix("error") { throw E2EFailure("\(name) failed in the session: \(result)") }
         return result
     }
 
-    private func snapshot(_ name: String) {
+    func snapshot(_ name: String) {
         guard let snapshot = FramebufferSnapshot(session: probe.session) else { return }
         try? snapshot.writePNG(to: evidence.appendingPathComponent("\(name).png"))
     }
 
-    private func check(_ name: String, _ actual: String, equals expected: String) {
+    func check(_ name: String, _ actual: String, equals expected: String) {
         check(name, actual == expected, "expected \(expected.debugDescription), got \(actual.debugDescription)")
     }
 
-    private func check(_ name: String, _ passed: Bool, _ detail: @autoclosure () -> String) {
+    func check(_ name: String, _ passed: Bool, _ detail: @autoclosure () -> String) {
         checks += 1
         if passed {
             log("PASS \(name)")

@@ -113,6 +113,16 @@ public struct SecuritySettings: Codable, Hashable, Sendable {
     public var authenticationLevel = 2
     public var promptForCredentials = true
     public init() {}
+
+    /// Compares hex digits only, so `AA:BB…`, `aabb…` and `AA BB …` are the same fingerprint.
+    public func trusts(fingerprint: String) -> Bool {
+        let wanted = Self.normalizedFingerprint(fingerprint)
+        return !wanted.isEmpty && trustedCertificateFingerprints.contains { Self.normalizedFingerprint($0) == wanted }
+    }
+
+    public static func normalizedFingerprint(_ fingerprint: String) -> String {
+        String(fingerprint.lowercased().filter(\.isHexDigit))
+    }
 }
 
 public struct AdvancedSettings: Codable, Hashable, Sendable {

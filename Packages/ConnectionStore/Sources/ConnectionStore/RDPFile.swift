@@ -31,13 +31,13 @@ public enum RDPFile {
         var warnings: [String] = []
         for (index, line) in text.components(separatedBy: .newlines).enumerated() where !line.isEmpty {
             let parts = line.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
-            guard parts.count == 3 else { warnings.append("Malformed line \(index + 1); skipped."); continue }
+            guard parts.count == 3 else { warnings.append("Zeile \(index + 1) unlesbar; übersprungen."); continue }
             let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
             if key == "password 51" || key == "password" {
-                warnings.append("Embedded credential field ignored; credentials must be entered separately.")
+                warnings.append("Gespeichertes Passwort in der Datei ignoriert; beim Verbinden wird danach gefragt.")
                 continue
             }
-            if fields[key] != nil { warnings.append("Duplicate field \(key); last value used.") }
+            if fields[key] != nil { warnings.append("Feld \(key) doppelt; der letzte Wert gilt.") }
             fields[key] = (parts[1].lowercased(), parts[2])
         }
         var reader = RDPFieldReader(fields: fields)
@@ -68,7 +68,7 @@ public enum RDPFile {
         if let value = try reader.boolean("redirectprinters") { connection.redirection.printers = value }
         connection.advanced.rdpDriveStoreDirect = try reader.string("drivestoredirect")
         if !(connection.advanced.rdpDriveStoreDirect ?? "").isEmpty {
-            warnings.append("Windows drive selectors retained, not mapped to local directories; local drive access requires explicit configuration.")
+            warnings.append("Laufwerksauswahl der Datei (Windows-Laufwerke) nicht als Mac-Ordner übernommen; Ordner bitte selbst freigeben.")
         }
         connection.advanced.alternateShell = try reader.string("alternate shell")
         connection.advanced.workingDir = try reader.string("shell working directory")
@@ -82,7 +82,7 @@ public enum RDPFile {
         if let value = try reader.boolean("prompt for credentials") { connection.security.promptForCredentials = value }
         try connection.validate()
         let ignored = fields.keys.filter { !reader.consumed.contains($0) }.sorted().map {
-            ImportFieldIssue($0, "Unsupported .rdp setting; not imported.")
+            ImportFieldIssue($0, "Einstellung wird nicht unterstützt; nicht übernommen.")
         }
         return RDPFileImport(connection: connection, ignoredFields: ignored, warnings: warnings)
     }

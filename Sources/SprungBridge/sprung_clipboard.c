@@ -15,12 +15,15 @@ static SprungSession *session_of(CliprdrClientContext *cliprdr) {
 }
 
 static UINT send_client_capabilities(CliprdrClientContext *cliprdr) {
-    // No file streaming yet (M5): long format names only.
+    // File streams with relative names only, 64-bit offsets. No clipboard locking: a file paste
+    // fails if the copying side's clipboard changed meanwhile. The channel drops what the server
+    // does not support.
     CLIPRDR_GENERAL_CAPABILITY_SET general = {
         .capabilitySetType = CB_CAPSTYPE_GENERAL,
         .capabilitySetLength = CB_CAPSTYPE_GENERAL_LEN,
         .version = CB_CAPS_VERSION_2,
-        .generalFlags = CB_USE_LONG_FORMAT_NAMES,
+        .generalFlags = CB_USE_LONG_FORMAT_NAMES | CB_STREAM_FILECLIP_ENABLED | CB_FILECLIP_NO_FILE_PATHS |
+                        CB_HUGE_FILE_SUPPORT_ENABLED,
     };
     const CLIPRDR_CAPABILITIES capabilities = {
         .common = { .msgType = CB_CLIP_CAPS },
@@ -103,14 +106,34 @@ static UINT on_server_format_data_response(CliprdrClientContext *cliprdr,
     return CHANNEL_RC_OK;
 }
 
-// Files over the clipboard come in M5; we never announce them, but answer politely.
 static UINT on_server_file_contents_request(CliprdrClientContext *cliprdr,
                                             const CLIPRDR_FILE_CONTENTS_REQUEST *request) {
+    SprungSession *session = session_of(cliprdr);
+    const bool sizeOnly = (request->dwFlags & FILECONTENTS_SIZE) != 0;
+    if (session->callbacks.clipboardFileRequested) {
+        const uint64_t offset = ((uint64_t)request->nPositionHigh << 32) | request->nPositionLow;
+        session->callbacks.clipboardFileRequested(session->callbacks.userData, request->streamId,
+                                                  request->listIndex, sizeOnly, offset, request->cbRequested);
+        return CHANNEL_RC_OK;
+    }
     const CLIPRDR_FILE_CONTENTS_RESPONSE failure = {
         .common = { .msgType = CB_FILECONTENTS_RESPONSE, .msgFlags = CB_RESPONSE_FAIL },
         .streamId = request->streamId,
     };
     return cliprdr->ClientFileContentsResponse(cliprdr, &failure);
+}
+
+static UINT on_server_file_contents_response(CliprdrClientContext *cliprdr,
+                                             const CLIPRDR_FILE_CONTENTS_RESPONSE *response) {
+    static const BYTE nothing = 0; // non-NULL for an empty but successful answer
+    SprungSession *session = session_of(cliprdr);
+    const bool ok = (response->common.msgFlags & CB_RESPONSE_FAIL) == 0 &&
+                    (response->requestedData || response->cbRequested == 0);
+    const BYTE *data = response->requestedData ? response->requestedData : &nothing;
+    if (session->callbacks.clipboardFileReceived)
+        session->callbacks.clipboardFileReceived(session->callbacks.userData, response->streamId,
+                                                 ok ? data : NULL, ok ? response->cbRequested : 0);
+    return CHANNEL_RC_OK;
 }
 
 static UINT on_server_lock(CliprdrClientContext *cliprdr, const CLIPRDR_LOCK_CLIPBOARD_DATA *lock) {
@@ -134,6 +157,7 @@ void sprung_clipboard_channel_connected(SprungSession *session, CliprdrClientCon
     cliprdr->ServerFormatDataRequest = on_server_format_data_request;
     cliprdr->ServerFormatDataResponse = on_server_format_data_response;
     cliprdr->ServerFileContentsRequest = on_server_file_contents_request;
+    cliprdr->ServerFileContentsResponse = on_server_file_contents_response;
     cliprdr->ServerLockClipboardData = on_server_lock;
     cliprdr->ServerUnlockClipboardData = on_server_unlock;
     pthread_mutex_lock(&session->clipboardLock);
@@ -145,6 +169,8 @@ void sprung_clipboard_channel_disconnected(SprungSession *session) {
     pthread_mutex_lock(&session->clipboardLock);
     session->cliprdr = NULL;
     pthread_mutex_unlock(&session->clipboardLock);
+    if (session->callbacks.clipboardClosed)
+        session->callbacks.clipboardClosed(session->callbacks.userData);
 }
 
 // MARK: - API
@@ -214,6 +240,47 @@ bool sprung_session_clipboard_respond(SprungSession *session, bool ok, const uin
         .requestedFormatData = ok ? data : NULL,
     };
     const UINT rc = cliprdr->ClientFormatDataResponse(cliprdr, &response);
+    clipboard_end(session);
+    return rc == CHANNEL_RC_OK;
+}
+
+bool sprung_session_clipboard_file_request(SprungSession *session, uint32_t streamId, uint32_t fileIndex,
+                                           bool sizeOnly, uint64_t offset, uint32_t length) {
+    CliprdrClientContext *cliprdr = clipboard_begin(session);
+    if (!cliprdr)
+        return false;
+    const CLIPRDR_FILE_CONTENTS_REQUEST request = {
+        .common = { .msgType = CB_FILECONTENTS_REQUEST },
+        .streamId = streamId,
+        .listIndex = fileIndex,
+        .dwFlags = sizeOnly ? FILECONTENTS_SIZE : FILECONTENTS_RANGE,
+        .nPositionLow = sizeOnly ? 0 : (UINT32)(offset & 0xFFFFFFFF),
+        .nPositionHigh = sizeOnly ? 0 : (UINT32)(offset >> 32),
+        .cbRequested = sizeOnly ? 8 : length,
+    };
+    const UINT rc = cliprdr->ClientFileContentsRequest(cliprdr, &request);
+    clipboard_end(session);
+    return rc == CHANNEL_RC_OK;
+}
+
+bool sprung_session_clipboard_file_respond(SprungSession *session, uint32_t streamId, bool ok,
+                                           const uint8_t *data, size_t size) {
+    if (size > UINT32_MAX - 4 || (size > 0 && !data))
+        ok = false;
+    CliprdrClientContext *cliprdr = clipboard_begin(session);
+    if (!cliprdr)
+        return false;
+    const CLIPRDR_FILE_CONTENTS_RESPONSE response = {
+        .common = {
+            .msgType = CB_FILECONTENTS_RESPONSE,
+            .msgFlags = ok ? CB_RESPONSE_OK : CB_RESPONSE_FAIL,
+            .dataLen = ok ? (UINT32)size + 4 : 4,
+        },
+        .streamId = streamId,
+        .cbRequested = ok ? (UINT32)size : 0,
+        .requestedData = ok ? data : NULL,
+    };
+    const UINT rc = cliprdr->ClientFileContentsResponse(cliprdr, &response);
     clipboard_end(session);
     return rc == CHANNEL_RC_OK;
 }

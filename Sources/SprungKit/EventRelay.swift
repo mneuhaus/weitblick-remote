@@ -6,21 +6,41 @@ import SprungBridge
 final class EventRelay: Sendable {
     @MainActor weak var session: RDPSession?
     let clipboard: RemoteClipboard
-    private let certificatePolicy: @Sendable (ServerCertificate) -> Bool
+    private let certificates: CertificateGate
 
-    init(clipboard: RemoteClipboard, certificatePolicy: @escaping @Sendable (ServerCertificate) -> Bool) {
+    init(clipboard: RemoteClipboard, certificates: CertificateGate) {
         self.clipboard = clipboard
-        self.certificatePolicy = certificatePolicy
+        self.certificates = certificates
     }
 
     func post(_ event: RDPSessionEvent) {
+        onMain { $0.handle(event) }
+    }
+
+    private func onMain(_ body: @escaping @MainActor (RDPSession) -> Void) {
         DispatchQueue.main.async {
-            MainActor.assumeIsolated { self.session?.handle(event) }
+            MainActor.assumeIsolated {
+                if let session = self.session { body(session) }
+            }
         }
     }
 
-    func verify(_ certificate: ServerCertificate) -> Bool {
-        certificatePolicy(certificate)
+    /// FreeRDP thread; blocks until the app decided (bounded by the gate).
+    private func verify(_ info: SprungCertificateInfo) -> Bool {
+        func string(_ pointer: UnsafePointer<CChar>?) -> String { pointer.map { String(cString: $0) } ?? "" }
+        let certificate = ServerCertificate(
+            host: string(info.host), port: info.port, commonName: string(info.commonName),
+            subject: string(info.subject), issuer: string(info.issuer),
+            fingerprint: string(info.fingerprint).uppercased(), hostnameMismatch: info.hostnameMismatch,
+            changed: certificates.trustsOtherCertificates)
+        return certificates.decide(certificate) { certificate, reply in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let session = self.session else { return reply(.reject) }
+                    session.ask(about: certificate, reply: reply)
+                }
+            }
+        }
     }
 
     /// C callback table pointing back at this relay. The relay must outlive the bridge session.
@@ -30,9 +50,16 @@ final class EventRelay: Sendable {
         callbacks.connected = { userData in
             EventRelay.from(userData).post(.connected)
         }
-        callbacks.disconnected = { userData, code, message in
-            let text = message.map { String(cString: $0) } ?? ""
-            EventRelay.from(userData).post(.disconnected(code: code, message: text))
+        callbacks.disconnected = { userData, reason, code, detail in
+            let text = detail.map { String(cString: $0) } ?? ""
+            let reason = DisconnectReason(reason)
+            EventRelay.from(userData).onMain { $0.ended(reason, code: code, detail: text) }
+        }
+        callbacks.reconnecting = { userData, attempt in
+            EventRelay.from(userData).post(.reconnecting(attempt: Int(attempt)))
+        }
+        callbacks.reconnected = { userData in
+            EventRelay.from(userData).post(.reconnected)
         }
         callbacks.frameReady = { userData in
             EventRelay.from(userData).post(.frameReady)
@@ -65,12 +92,7 @@ final class EventRelay: Sendable {
         }
         callbacks.verifyCertificate = { userData, info in
             guard let info = info?.pointee else { return false }
-            func string(_ pointer: UnsafePointer<CChar>?) -> String { pointer.map { String(cString: $0) } ?? "" }
-            let certificate = ServerCertificate(
-                host: string(info.host), port: info.port, commonName: string(info.commonName),
-                subject: string(info.subject), issuer: string(info.issuer),
-                fingerprint: string(info.fingerprint), changed: info.changed)
-            return EventRelay.from(userData).verify(certificate)
+            return EventRelay.from(userData).verify(info)
         }
         // Clipboard events stay on the channel thread; RemoteClipboard's delegate decides where to go.
         callbacks.clipboardReady = { userData in
@@ -96,6 +118,21 @@ final class EventRelay: Sendable {
             let clipboard = EventRelay.from(userData).clipboard
             let data = bytes.map { Data(bytes: $0, count: size) }
             clipboard.notify { $0.remoteClipboard(clipboard, didReceive: data) }
+        }
+        callbacks.clipboardFileRequested = { userData, streamID, fileIndex, sizeOnly, offset, length in
+            let clipboard = EventRelay.from(userData).clipboard
+            let request = RemoteFileRequest(streamID: streamID, fileIndex: Int(fileIndex), sizeOnly: sizeOnly,
+                                            offset: offset, length: Int(length))
+            clipboard.notify { $0.remoteClipboard(clipboard, didRequestFile: request) }
+        }
+        callbacks.clipboardFileReceived = { userData, streamID, bytes, size in
+            let clipboard = EventRelay.from(userData).clipboard
+            let data = bytes.map { Data(bytes: $0, count: size) }
+            clipboard.notify { $0.remoteClipboard(clipboard, didReceiveFile: streamID, data: data) }
+        }
+        callbacks.clipboardClosed = { userData in
+            let clipboard = EventRelay.from(userData).clipboard
+            clipboard.notify { $0.remoteClipboardDidClose(clipboard) }
         }
         return callbacks
     }

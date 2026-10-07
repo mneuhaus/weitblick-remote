@@ -24,14 +24,23 @@ public enum ConnectionSortOrder: Sendable { case name, recent }
 /// All mutations persist before changing the in-memory snapshot. One actor per file URL.
 public actor ConnectionStore {
     public typealias Migration = @Sendable (_ oldData: Data, _ oldSchemaVersion: Int) throws -> Data
-    public static var defaultFileURL: URL {
+    /// The app's folder in Application Support (the one place that names it).
+    public static let applicationSupportFolderName = "Sprung"
+    public static var applicationSupportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Sprung/connections.json")
+            .appendingPathComponent("Library/Application Support/\(applicationSupportFolderName)", isDirectory: true)
+    }
+    public static var defaultFileURL: URL {
+        applicationSupportDirectory.appendingPathComponent("connections.json")
     }
 
     public nonisolated let fileURL: URL
     public private(set) var connections: [Connection] = []
     public private(set) var lastMigrationBackupURL: URL?
+    /// The file as it was before the last import changed it (one rolling copy).
+    public nonisolated var importBackupURL: URL {
+        fileURL.deletingPathExtension().appendingPathExtension("before-import.json")
+    }
     private let migration: Migration?
     private var isLoaded = false
 
@@ -108,6 +117,20 @@ public actor ConnectionStore {
         try replaceAll(updated)
     }
 
+    /// Changes one stored connection in place (read, change, write inside the actor), so small
+    /// updates such as the last-connected date never overwrite other changes with a stale copy.
+    @discardableResult
+    public func modify(id: UUID, _ change: @Sendable (inout Connection) -> Void) throws -> Connection {
+        try ensureLoaded()
+        guard var connection = connections.first(where: { $0.id == id }) else {
+            throw ConnectionStoreError.missingConnection(id)
+        }
+        change(&connection)
+        connection.id = id
+        try update(connection)
+        return connection
+    }
+
     public func delete(id: UUID) throws {
         try ensureLoaded()
         guard connections.contains(where: { $0.id == id }) else { throw ConnectionStoreError.missingConnection(id) }
@@ -119,7 +142,7 @@ public actor ConnectionStore {
         try ensureLoaded()
         guard var copy = connections.first(where: { $0.id == id }) else { throw ConnectionStoreError.missingConnection(id) }
         copy.id = UUID()
-        copy.name = name ?? "\(copy.name) Copy"
+        copy.name = name ?? "\(copy.name) Kopie"
         copy.lastConnected = nil
         copy.importSource = nil
         try insert(copy)
@@ -127,6 +150,12 @@ public actor ConnectionStore {
     }
 
     public func search(_ query: String = "", sortedBy order: ConnectionSortOrder = .name) -> [Connection] {
+        Self.filter(connections, matching: query, sortedBy: order)
+    }
+
+    /// Search over name, host, user, domain, notes and tags; `.recent` puts the last used first.
+    public static func filter(_ connections: [Connection], matching query: String,
+                              sortedBy order: ConnectionSortOrder) -> [Connection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let result = connections.filter { connection in
             needle.isEmpty || ([connection.name, connection.host, connection.username, connection.domain,
@@ -158,7 +187,11 @@ public actor ConnectionStore {
                 updated.append(entry.connection)
             }
         }
-        if updated != connections { try replaceAll(updated) }
+        guard updated != connections else { return }
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try Data(contentsOf: fileURL).write(to: importBackupURL, options: .atomic)
+        }
+        try replaceAll(updated)
     }
 
     private func write(_ connections: [Connection]) throws {

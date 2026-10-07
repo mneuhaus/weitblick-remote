@@ -53,9 +53,11 @@ struct JumpImporterTests {
         let report = try #require(plan.report.connections.first)
         #expect(report.ignoredFields.contains { $0.field == "FutureJumpField" })
         for field in ["ColorDepthCode", "RdpPerformanceFlags", "ConnectionTypeCode", "TypeCode", "OsTypeCode", "GestureProfileCode"] {
-            #expect(report.ignoredFields.contains { $0.field == field && $0.reason.contains("Undocumented") })
+            #expect(report.ignoredFields.contains { $0.field == field && $0.reason.contains("Undokumentiert") })
         }
-        #expect(report.warnings.contains { $0.contains("Password unavailable") })
+        #expect(report.warnings.contains(JumpImporter.passwordNotice))
+        #expect(report.warnings.contains { $0.contains("„Test files“ ist in Jump schreibgeschützt") })
+        #expect(!report.warnings.contains { $0.contains("„Work“") }) // disabled: never shared anyway
         let source = try syntheticJump()
         let reported = Set(report.importedFields + report.ignoredFields.map(\.field))
         #expect(Set(source.keys).isSubset(of: reported))
@@ -145,12 +147,64 @@ struct JumpImporterTests {
         let plan = try JumpImporter(directory: temporary.url).plan(existing: [])
         #expect(plan.entries.count == 2)
         #expect(plan.report.connections.count == 5)
-        #expect(plan.report.connections[1].warnings.contains { $0.contains("Duplicate UniqueId") })
+        #expect(plan.report.connections[1].warnings.contains { $0.contains("Doppelte UniqueId") })
         let issues = plan.report.connections[2].ignoredFields.map(\.field)
         #expect(issues.contains("TcpPort") && issues.contains("ClipboardRedirection"))
         #expect(issues.contains("DriveMappings[0].UnknownDriveField"))
         #expect(plan.report.connections[3].action == nil)
-        #expect(plan.report.connections[4].warnings.contains { $0.contains("Missing UniqueId") })
+        #expect(plan.report.connections[4].warnings.contains { $0.contains("UniqueId fehlt") })
+    }
+
+    @Test func reimportKeepsSprungTrustAndNewerLastConnected() async throws {
+        let temporary = try TemporaryDirectory()
+        var source = minimalJump()
+        source["SslCertificateFingerPrint"] = "AA:BB:CC"
+        source["LastConnectedTime"] = 600000000.0
+        try temporary.writeJump(source)
+        let importer = JumpImporter(directory: temporary.url)
+        let store = ConnectionStore(fileURL: temporary.storeURL)
+        try await importer.apply(importer.plan(existing: []), to: store)
+        // In Sprung since the import: a new certificate trusted, a newer connection made.
+        var local = await store.connections[0]
+        local.security.trustedCertificateFingerprints.append("dd:ee:ff")
+        local.lastConnected = Date(timeIntervalSinceReferenceDate: 700000000)
+        try await store.update(local)
+        let again = try importer.plan(existing: await store.connections)
+        #expect(again.unchangedCount == 1)
+        #expect(again.entries[0].connection.security.trustedCertificateFingerprints == ["AA:BB:CC", "dd:ee:ff"])
+        #expect(again.entries[0].connection.lastConnected == local.lastConnected)
+        // Jump used again later: its newer time wins; a new Jump fingerprint is added, not swapped in.
+        source["LastConnectedTime"] = 800000000.0
+        source["SslCertificateFingerPrint"] = "11:22:33"
+        try temporary.writeJump(source)
+        let update = try #require(importer.plan(existing: await store.connections).entries.first).connection
+        #expect(update.lastConnected == Date(timeIntervalSinceReferenceDate: 800000000))
+        #expect(update.security.trustedCertificateFingerprints == ["AA:BB:CC", "dd:ee:ff", "11:22:33"])
+    }
+
+    @Test func importBacksUpTheExistingFileBeforeChangingIt() async throws {
+        let temporary = try TemporaryDirectory()
+        try temporary.writeJump(minimalJump())
+        let importer = JumpImporter(directory: temporary.url)
+        let store = ConnectionStore(fileURL: temporary.storeURL)
+        try await importer.apply(importer.plan(existing: []), to: store)
+        #expect(!FileManager.default.fileExists(atPath: store.importBackupURL.path)) // nothing to back up yet
+        let beforeUpdate = try Data(contentsOf: temporary.storeURL)
+        var source = minimalJump()
+        source["DisplayName"] = "Renamed in Jump"
+        try temporary.writeJump(source)
+        try await importer.apply(importer.plan(existing: await store.connections), to: store)
+        #expect(try Data(contentsOf: store.importBackupURL) == beforeUpdate)
+        #expect(await store.connections[0].name == "Renamed in Jump")
+    }
+
+    @Test func fingerprintComparisonIgnoresSeparatorsAndCase() {
+        var security = SecuritySettings()
+        security.trustedCertificateFingerprints = ["AB:CD:01"]
+        #expect(security.trusts(fingerprint: "abcd01"))
+        #expect(security.trusts(fingerprint: "ab cd 01"))
+        #expect(!security.trusts(fingerprint: "abcd02"))
+        #expect(!security.trusts(fingerprint: ""))
     }
 
     @Test func sourceRemainsByteForByteUnchanged() throws {

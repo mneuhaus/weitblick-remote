@@ -12,10 +12,22 @@ public struct SessionConfiguration: Sendable {
     public var scale: RemoteScale = .standard
     /// Windows keyboard layout id (KLID), e.g. 0x0407 German. The app sets it from the Mac input source.
     public var keyboardLayout: UInt32 = 0x0407
+    /// Skips certificate checks entirely (Jump's "IgnoreCertificateErrors").
     public var ignoreCertificate = false
-    public var audioPlayback = true
+    /// SHA-256 fingerprints (colon-separated hex, any case) accepted without asking. A different
+    /// certificate is reported as `ServerCertificate.changed`.
+    public var trustedCertificateFingerprints: [String] = []
+    public var audio: AudioPlayback = .local
+    /// Microphone redirection; macOS asks for permission when a remote app first records.
+    public var microphone = false
+    /// Redirects the Mac's printers (CUPS).
+    public var printers = false
+    /// Local folders shown in the session as \\tsclient\<name>.
+    public var drives: [SharedDrive] = []
     /// Clipboard redirection (cliprdr channel).
     public var clipboard = true
+    /// Reconnects with backoff after a network drop (`.reconnecting` / `.reconnected`).
+    public var autoReconnect = true
     /// FreeRDP's own state (license store; certificates are never stored there).
     public var stateDirectory = URL.applicationSupportDirectory.appending(path: "Sprung/FreeRDP", directoryHint: .isDirectory)
 
@@ -24,6 +36,26 @@ public struct SessionConfiguration: Sendable {
         self.username = username
         self.password = password
         self.desktopSize = desktopSize
+    }
+}
+
+public enum AudioPlayback: String, Sendable, CaseIterable {
+    /// Played on the Mac.
+    case local
+    /// Played on the remote computer.
+    case remote
+    case off
+}
+
+/// A local folder redirected into the session.
+public struct SharedDrive: Equatable, Sendable {
+    /// Share name in the session (\\tsclient\<name>); "/" and "\" become "_".
+    public var name: String
+    public var localPath: URL
+
+    public init(name: String, localPath: URL) {
+        self.name = name
+        self.localPath = localPath
     }
 }
 

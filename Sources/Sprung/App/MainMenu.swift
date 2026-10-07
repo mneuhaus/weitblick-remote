@@ -1,25 +1,58 @@
 import AppKit
 import KeyboardEngine
 
-/// The menu bar, built in code (no nib).
+/// The menu bar, built in code (no nib). In a connected session every key goes to Windows except
+/// ⌃⌘F and ⌃⌥⌘ shortcuts, so session-time commands live under ⌃⌥⌘ or have no key equivalent.
 @MainActor
 enum MainMenu {
-    static func make() -> NSMenu {
+    static func make(coordinator: WindowCoordinator) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(submenu(appMenu()))
+        menu.addItem(submenu(appMenu(coordinator)))
+        menu.addItem(submenu(fileMenu(coordinator), title: "Ablage"))
+        menu.addItem(submenu(editMenu(), title: "Bearbeiten"))
         menu.addItem(submenu(viewMenu(), title: "Darstellung"))
         menu.addItem(submenu(SessionMenu.make(), title: "Sitzung"))
+        let window = windowMenu(coordinator)
+        menu.addItem(submenu(window, title: "Fenster"))
+        NSApp.windowsMenu = window
         return menu
     }
 
-    private static func appMenu() -> NSMenu {
-        let menu = NSMenu(title: "Sprung")
-        menu.addItem(withTitle: "Über Sprung", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+    private static func appMenu(_ coordinator: WindowCoordinator) -> NSMenu {
+        let menu = NSMenu(title: AppInfo.name)
+        menu.addItem(withTitle: "Über \(AppInfo.name)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Sprung ausblenden", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        menu.addItem(item("Einstellungen…", #selector(WindowCoordinator.showSettings(_:)), ",", target: coordinator))
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "\(AppInfo.name) ausblenden", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         menu.addItem(.separator())
         // In a session window ⌘Q goes to Windows (Alt+F4); the menu item still quits from anywhere.
-        menu.addItem(withTitle: "Sprung beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "\(AppInfo.name) beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        return menu
+    }
+
+    private static func fileMenu(_ coordinator: WindowCoordinator) -> NSMenu {
+        let menu = NSMenu(title: "Ablage")
+        menu.addItem(item("Neue Verbindung…", #selector(WindowCoordinator.newConnection(_:)), "n", target: coordinator))
+        menu.addItem(.separator())
+        menu.addItem(item("Aus Jump importieren…", #selector(WindowCoordinator.importFromJump(_:)), target: coordinator))
+        menu.addItem(item(".rdp importieren…", #selector(WindowCoordinator.importRDPFile(_:)), "o", target: coordinator))
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Fenster schließen", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        return menu
+    }
+
+    /// Standard text editing for the fields in the overview, editor and sheets.
+    private static func editMenu() -> NSMenu {
+        let menu = NSMenu(title: "Bearbeiten")
+        menu.addItem(withTitle: "Widerrufen", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = menu.addItem(withTitle: "Wiederholen", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        menu.addItem(withTitle: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        menu.addItem(withTitle: "Einsetzen", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        menu.addItem(withTitle: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         return menu
     }
 
@@ -27,8 +60,45 @@ enum MainMenu {
         let menu = NSMenu(title: "Darstellung")
         let fullScreen = menu.addItem(withTitle: "Vollbild", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         fullScreen.keyEquivalentModifierMask = [.control, .command]
-        menu.addItem(withTitle: "Fenster schließen", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         return menu
+    }
+
+    /// Tabs: ⌃⌥⌘1 = Übersicht, ⌃⌥⌘2…9 = sessions in tab order, ⌃⌥⌘← / → = previous / next.
+    private static func windowMenu(_ coordinator: WindowCoordinator) -> NSMenu {
+        let menu = NSMenu(title: "Fenster")
+        menu.addItem(withTitle: "Im Dock ablegen", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        menu.addItem(withTitle: "Zoomen", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        let tabModifiers: NSEvent.ModifierFlags = [.control, .option, .command]
+        let previous = item("Vorheriger Tab", #selector(WindowCoordinator.selectPreviousTab(_:)),
+                            String(UnicodeScalar(NSLeftArrowFunctionKey)!), target: coordinator)
+        let next = item("Nächster Tab", #selector(WindowCoordinator.selectNextTab(_:)),
+                        String(UnicodeScalar(NSRightArrowFunctionKey)!), target: coordinator)
+        for entry in [previous, next] {
+            entry.keyEquivalentModifierMask = tabModifiers
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+        for tag in 0...8 {
+            let entry = item(tag == 0 ? "Übersicht" : "Sitzung \(tag)", #selector(WindowCoordinator.selectTab(_:)),
+                             "\(tag + 1)", target: coordinator)
+            entry.tag = tag
+            entry.keyEquivalentModifierMask = tabModifiers
+            entry.allowsKeyEquivalentWhenHidden = true
+            entry.isHidden = tag > 0
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+        menu.addItem(item("Sitzungen in eigenen Fenstern öffnen", #selector(WindowCoordinator.toggleSessionsInOwnWindows(_:)),
+                          target: coordinator))
+        menu.delegate = coordinator
+        return menu
+    }
+
+    private static func item(_ title: String, _ action: Selector, _ key: String = "", target: AnyObject) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = target
+        return item
     }
 
     static func submenu(_ menu: NSMenu, title: String = "") -> NSMenuItem {
@@ -47,6 +117,8 @@ enum SessionMenu {
 
     static func make() -> NSMenu {
         let menu = NSMenu(title: "Sitzung")
+        add("Erneut verbinden", #selector(SessionWindowController.reconnect(_:)), to: menu)
+        menu.addItem(.separator())
         add("Strg+Alt+Entf senden", #selector(SessionWindowController.sendCtrlAltDelete(_:)), to: menu)
         add("Windows-Taste", #selector(SessionWindowController.sendWindowsKey(_:)), to: menu)
         add("Alt+Tab", #selector(SessionWindowController.sendAltTab(_:)), to: menu)

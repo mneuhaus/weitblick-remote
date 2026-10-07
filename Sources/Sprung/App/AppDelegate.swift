@@ -1,15 +1,11 @@
 import AppKit
-import KeyboardEngine
-import KeyboardEngineCarbon
+import ConnectionStore
 import SprungKit
-import SwiftUI
 
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var connectWindow: NSWindow?
-    private var sessions: [SessionWindowController] = []
-    private var isTerminating = false
+    private var coordinator: WindowCoordinator!
 
     static func main() {
         let app = NSApplication.shared
@@ -18,89 +14,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         app.run()
     }
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = MainMenu.make()
-        let request = Self.initialRequest()
-        if CommandLine.arguments.contains("--autoconnect"), !request.host.isEmpty {
-            open(request, retina: !CommandLine.arguments.contains("--no-retina"))
-        } else {
-            showConnectWindow(request)
-        }
-        NSApp.activate()
+    /// Before launch finishes: files opened from Finder arrive before `applicationDidFinishLaunching`.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let options = LaunchOptions()
+        let library = ConnectionLibrary(store: ConnectionStore(fileURL: options.storeURL),
+                                        credentials: Self.credentialStore(options))
+        coordinator = WindowCoordinator(library: library, options: options)
+        NSApp.mainMenu = MainMenu.make(coordinator: coordinator)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // No activate(): launched from Finder or the Dock, macOS activates the app anyway; launched
+        // in the background (open -g) it must stay there.
+        Task {
+            await coordinator.start()
+            #if DEBUG
+            DebugHooks(coordinator: coordinator).run()
+            #endif
+        }
+    }
+
+    private static func credentialStore(_ options: LaunchOptions) -> any CredentialStore {
+        #if DEBUG
+        if let store = DebugHooks.credentialStore(options) { return store }
+        #endif
+        return KeychainCredentialStore()
+    }
+
+    func application(_ sender: NSApplication, open urls: [URL]) {
+        coordinator.open(urls)
+    }
+
+    /// The overview can be closed while no session runs; the Dock icon brings it back.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { coordinator.showOverview() }
+        return true
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        let open = sessions.count
-        guard open > 0 else { return .terminateNow }
-        let alert = NSAlert()
-        alert.messageText = "Sprung beenden?"
-        alert.informativeText = open == 1
-            ? "Die offene Sitzung wird getrennt." : "Die \(open) offenen Sitzungen werden getrennt."
-        alert.addButton(withTitle: "Beenden")
-        alert.addButton(withTitle: "Abbrechen")
-        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        coordinator.shouldTerminate()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        isTerminating = true
-        sessions.forEach { $0.close() }
+        coordinator.closeAllSessions()
         // exit() tears down FreeRDP's global state; the session threads must be gone first.
         RDPSession.waitForAllSessionsToClose(timeout: 5)
-    }
-
-    private func showConnectWindow(_ request: ConnectRequest) {
-        let form = ConnectForm(request: request) { [weak self] request, retina in
-            self?.open(request, retina: retina)
-        }
-        let window = NSWindow(contentViewController: NSHostingController(rootView: form))
-        window.title = "Sprung"
-        window.styleMask.remove(.resizable)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        connectWindow = window
-    }
-
-    private func open(_ request: ConnectRequest, retina: Bool) {
-        var configuration = SessionConfiguration(
-            host: request.host, username: request.username, password: request.password,
-            desktopSize: PixelSize(width: 1280, height: 800))
-        configuration.domain = request.domain
-        // M4 brings per-connection keyboard settings; until then the defaults.
-        let keyboardConfig = KeyboardConfig()
-        configuration.keyboardLayout = (keyboardConfig.layoutOverride ?? .current).rawValue
-        guard let controller = SessionWindowController(
-            configuration: configuration, keyboardConfig: keyboardConfig, retina: retina)
-        else {
-            NSAlert(error: CocoaError(.featureUnsupported)).runModal()
-            return
-        }
-        controller.onClose = { [weak self, weak controller] in
-            guard let self else { return }
-            sessions.removeAll { $0 === controller }
-            if sessions.isEmpty && !isTerminating { returnToConnectWindow() }
-        }
-        sessions.append(controller)
-        connectWindow?.orderOut(nil)
-        controller.start()
-    }
-
-    private func returnToConnectWindow() {
-        if let connectWindow {
-            connectWindow.makeKeyAndOrderFront(nil)
-        } else {
-            showConnectWindow(Self.initialRequest())
-        }
-    }
-
-    /// DEBUG builds prefill the form from `.testvm.env`.
-    private static func initialRequest() -> ConnectRequest {
-        #if DEBUG
-        if let url = TestVMEnvironment.locate(), let vm = try? TestVMEnvironment(contentsOf: url) {
-            return ConnectRequest(host: vm.host, username: vm.username, password: vm.password)
-        }
-        #endif
-        return ConnectRequest()
     }
 }

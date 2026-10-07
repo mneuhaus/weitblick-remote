@@ -1,6 +1,7 @@
 name: Sprung
 options:
   bundleIdPrefix: nrw.neuhaus
+  developmentLanguage: de
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -20,6 +21,8 @@ settings:
 packages:
   KeyboardEngine:
     path: Packages/KeyboardEngine
+  ConnectionStore:
+    path: Packages/ConnectionStore
 
 settingGroups:
   freerdpLink:
@@ -30,6 +33,7 @@ settingGroups:
       - -lwinpr3
       - -lssl
       - -lcrypto
+      - -lcups # printer redirection (system CUPS)
       - -framework AudioToolbox
       - -framework AVFoundation
       - -framework Carbon
@@ -77,12 +81,18 @@ targets:
       - target: SprungBridge
       - package: KeyboardEngine
         product: KeyboardEngine
+      - package: ConnectionStore
+        product: ConnectionStore
     scheme:
       testTargets: [SprungTests]
     settings:
       groups: [freerdpLink]
       base:
         PRODUCT_NAME: Sprung
+        # Document type for .rdp files; the generated Info.plist keys are merged into it.
+        INFOPLIST_FILE: Sources/Sprung/Support/Info.plist
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Leitet das Mikrofon an den entfernten Windows-PC weiter, wenn die Verbindung das erlaubt."
+        CODE_SIGN_ENTITLEMENTS: Sources/Sprung/Support/Sprung.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
@@ -136,9 +146,14 @@ targets:
       - Sources/Sprung/Session/ScrollAccumulator.swift
       - Sources/Sprung/Session/RemoteCursors.swift
       - Sources/Sprung/Input/SystemShortcutTap.swift
+      - Sources/Sprung/Model
     dependencies:
       - target: SprungKit
       - target: SprungBridge
+      - package: KeyboardEngine
+        product: KeyboardEngine
+      - package: ConnectionStore
+        product: ConnectionStore
     settings:
       groups: [freerdpLink]
       base:

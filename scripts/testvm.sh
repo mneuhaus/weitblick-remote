@@ -29,3 +29,12 @@ hold_vm_lock() {
     exec lockf -t 3600 /tmp/sprung-testvm.lock "$@"
   fi
 }
+
+# Plugs the VM's network adapter back in if a test left it unplugged (e2e reconnect check).
+reconnect_vm_network() {
+  command -v prlctl >/dev/null || return 0
+  if prlctl list -i "$VM_NAME" 2>/dev/null | grep -E '^ *net0 ' | grep -q 'state=disconnected'; then
+    echo "plugging the VM's network adapter back in"
+    prlctl set "$VM_NAME" --device-connect net0 >/dev/null || true
+  fi
+}

@@ -6,7 +6,9 @@
 // 1600x1000 and waits for the server's desktop resize (DIR/smoke-resized.png), hovers the
 // search box for a text cursor (DIR/cursors/*.png) and disconnects. Then optionally soaks
 // (mouse, right-click + Esc, wheel and resizes for SECONDS) and runs N connect/disconnect
-// cycles (each asking for a resize during logon) watching memory. Exits 0 or 1 with a reason.
+// cycles (each asking for a resize during logon) watching memory. In between, sessions that must
+// fail check the end reason the app gets (certificate, wrong password, closed port; see
+// EndReasonChecks.swift). Exits 0 or 1 with a reason.
 import Darwin
 import Foundation
 import SprungKit
@@ -52,14 +54,19 @@ func memoryFootprintMB() -> Double {
 @MainActor
 func makeConfiguration(_ vm: TestVMEnvironment, size: PixelSize) -> SessionConfiguration {
     var configuration = SessionConfiguration(host: vm.host, username: vm.username, password: vm.password, desktopSize: size)
-    configuration.audioPlayback = false
+    configuration.audio = .off
     configuration.clipboard = false // covered by sprung-e2e
     return configuration
 }
 
 @MainActor
 func connect(_ vm: TestVMEnvironment, size: PixelSize) async throws -> SmokeProbe {
-    guard let probe = SmokeProbe(configuration: makeConfiguration(vm, size: size)) else {
+    try await connect(makeConfiguration(vm, size: size))
+}
+
+@MainActor
+func connect(_ configuration: SessionConfiguration) async throws -> SmokeProbe {
+    guard let probe = SmokeProbe(configuration: configuration) else {
         throw SmokeFailure("could not create session")
     }
     probe.session.connect()
@@ -73,6 +80,9 @@ func disconnect(_ probe: SmokeProbe) async throws {
     try await probe.wait("disconnect", timeout: 15) { probe.ending != nil }
     if let ending = probe.ending, ending.code != 0 {
         throw SmokeFailure("disconnect reported an error: \(ending.message)")
+    }
+    guard probe.session.disconnectReason == .requested else {
+        throw SmokeFailure("disconnect reason is \(String(describing: probe.session.disconnectReason)), expected requested")
     }
     await probe.session.closeAndWait()
 }
@@ -216,6 +226,7 @@ func main() async -> Int32 {
         let vm = try TestVMEnvironment(contentsOf: envFile)
         try FileManager.default.createDirectory(at: options.outputDirectory, withIntermediateDirectories: true)
         try await runScenario(vm, output: options.outputDirectory)
+        try await runEndReasonChecks(vm)
         try await runSoak(vm, seconds: options.soakSeconds)
         try await runCycles(vm, count: options.cycles)
         log("SMOKE OK")
