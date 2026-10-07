@@ -72,8 +72,9 @@ In „Mac-Kurzbefehle“:
   - ⌘⇥ (gehalten, mehrfach ⇥) → Alt gehalten + ⇥, ⌘⇧⇥ entsprechend; Alt los erst mit ⌘ los
   - ⌘Leertaste → Win (Startsuche); ⌥⌘Esc → Strg+⇧+Esc (Task-Manager)
   - ⌃⌥⌫ (bzw. ⌃⌥⌦) → Strg+Alt+Entf
-- Lokal bleiben: ⌘Q (Beenden, mit Rückfrage bei offenen Sitzungen), ⌃⌘F (Vollbild),
-  alles mit ⌃⌥⌘ (reserviert für App-Kürzel).
+  - ⌘Q → Alt+F4 (wie Jump; Sprung beenden über Menü bzw. ⌘Q außerhalb einer Sitzung),
+    ⌘[ / ⌘] → Alt+← / Alt+→
+- Lokal bleiben: ⌃⌘F (Vollbild), alles mit ⌃⌥⌘ (reserviert für App-Kürzel).
 - ⌃ bleibt Strg (⌃C funktioniert also auch).
 - Systemkürzel (⌘⇥, ⌘Leertaste, ⌃←/→ usw.) fängt macOS vor der App ab. Optional per CGEventTap
   abfangen (braucht Bedienungshilfen-Recht): Standard „im Vollbild“, wählbar „immer“/„nie“.
@@ -103,6 +104,28 @@ Option pro Verbindung „Unicode-Eingabe“: alle druckbaren Zeichen als Unicode
 Automatischer Abgleich in beide Richtungen: Text (Unicode, Zeilenenden), HTML, RTF, Bilder
 (PNG/TIFF ↔ DIB), Dateien (FileGroupDescriptorW + FileContents, lazy, in beide Richtungen).
 Maximalgröße konfigurierbar (Standard 128 MB).
+
+## Migration aus Jump (Pflicht, Teil von M4)
+Alle Verbindungen aus Jump werden übernommen, beim ersten Start automatisch (mit Vorschau und
+Bestätigung) und jederzeit erneut über „Ablage → Aus Jump importieren“. Idempotent über Jumps `UniqueId`.
+- Quelle: `…/com.p5sys.jump.mac.viewer/Data/Documents/JumpDesktop/Viewer/Servers/*.jump` (JSON).
+- Felder: `DisplayName`, `TcpHostName`, `TcpPort`, `Username`, `Domain`, `ProtocolTypeCode`
+  (0 = RDP, 1 = VNC), `DriveMappings[]` (Name, Pfad, aktiv) + `RdpDriveRedirection`,
+  `ClipboardRedirection`, `AudioPlaybackCode`, `AudioInputDevice`, `RdpPrinterRedirection`,
+  `DefaultPrinter`, `UseDynamicResolutionUpdate`, `MatchScreenResolution`, `ResolutionWidth/Height`,
+  `UseHIDPIResolution`, `DesktopScaleFactor`, `StartInFullscreen`, `UseAllMonitors`/`MonitorCount`,
+  `KeyboardLocaleId` + `KeyboardAutomaticLocaleDetection`, `RdpUseUnicodeKeyboard`, `RdpDisableNLA`,
+  `RdpConsoleSession`, `IgnoreCertificateErrors`, `SslCertificateFingerPrint` (als vertrauenswürdig
+  übernehmen), `RdpAlternateShellPath/WorkingDir`, `LoadBalancerInfo`, `RDGatewayUniqueId`, `MacAddresses`
+  (Wake-on-LAN), `Tags`, `LastConnectedTime`. Unbekannte Felder im Importbericht auflisten statt verwerfen.
+- VNC-Einträge (m4-mini) werden mit übernommen und öffnen die macOS-Bildschirmfreigabe (`vnc://host:port`).
+- Passwörter liegen nicht in den Dateien und nicht lesbar im Schlüsselbund (Jump ist sandboxed). Beim
+  ersten Verbinden fragt Sprung einmal und speichert im Schlüsselbund.
+- Tastaturprofil: `…/Library/Application Support/Jump Desktop/JDInputProfile.plist` (NSKeyedArchiver,
+  Profile „Mac“ und „Windows“). Marcs Profile sind Jumps Standard. Daraus übernommen in Sprungs Standardregeln:
+  ⌘Q → Alt+F4 (in der Sitzung, nicht App beenden), ⌘[ / ⌘] → Alt+← / Alt+→, ⌘⇧Z → Strg+Y,
+  ⌃⌥⌫ → Strg+Alt+Entf. Abweichende eigene Mappings im Profil werden als Regeln importiert.
+- Danach Importbericht: was übernommen wurde, was nicht (mit Grund).
 
 ## Meilensteine
 - **M1** Kern: FreeRDP-Build, Bridge, Sitzungsfenster mit Bild, Maus, Scrollen, Cursorformen,
