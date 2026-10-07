@@ -1,0 +1,7 @@
+.testvm.env
+build/
+DerivedData/
+*.xcodeproj/
+.DS_Store
+vendor/build/
+vendor/install/
