@@ -10,10 +10,12 @@ public struct SessionConfiguration: Sendable {
     /// Initial remote desktop size in pixels.
     public var desktopSize: PixelSize
     public var scale: RemoteScale = .standard
-    /// Windows keyboard layout id (KLID); 0x0407 is German.
+    /// Windows keyboard layout id (KLID), e.g. 0x0407 German. The app sets it from the Mac input source.
     public var keyboardLayout: UInt32 = 0x0407
     public var ignoreCertificate = false
     public var audioPlayback = true
+    /// Clipboard redirection (cliprdr channel).
+    public var clipboard = true
     /// FreeRDP's own state (license store; certificates are never stored there).
     public var stateDirectory = URL.applicationSupportDirectory.appending(path: "Sprung/FreeRDP", directoryHint: .isDirectory)
 

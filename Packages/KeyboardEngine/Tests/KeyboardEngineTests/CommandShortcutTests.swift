@@ -183,6 +183,51 @@ struct CommandShortcutTests {
         #expect(h.take() == tap(SC.lWin))
     }
 
+    /// From Jump's default input profile; ⌘Q reaches the session instead of quitting Sprung.
+    @Test func commandQClosesTheRemoteWindow() {
+        var h = Harness()
+        h.press(.lCmd)
+        h.down(K.q)
+        #expect(!h.lastPassedToApp)
+        #expect(h.take() == [down(SC.lAlt), down(SC.f4)])
+        h.up(K.q)
+        h.release(.lCmd)
+        #expect(h.take() == [up(SC.f4), up(SC.lAlt)])
+    }
+
+    @Test func commandBracketsAreBrowserBackAndForward() {
+        var h = Harness(Layouts.us)
+        h.chord([.lCmd], K.leftBracket)
+        h.chord([.lCmd], K.rightBracket)
+        #expect(h.take() == sequence(
+            [down(SC.lAlt)], tap(SC.left), [up(SC.lAlt)],
+            [down(SC.lAlt)], tap(SC.right), [up(SC.lAlt)]
+        ))
+    }
+
+    /// The bracket rules match by typed character like Jump: German types [ and ] with ⌥5 / ⌥6, and
+    /// ⌘⌥ must not take the default ⌘ path (Ctrl+Alt+5) there.
+    @Test func commandBracketsAreOptionDigitsOnGerman() {
+        var h = Harness(Layouts.german)
+        h.chord([.lCmd, .lOpt], K.five)
+        h.chord([.lOpt, .lCmd], K.six)
+        #expect(h.take() == sequence(
+            [down(SC.lAlt)], tap(SC.left), [up(SC.lAlt)],
+            [down(SC.lAlt)], tap(SC.right), [up(SC.lAlt)]
+        ))
+    }
+
+    /// The keys at the US bracket positions keep the default rule on German: ⌘Ü = Ctrl+Ü and
+    /// ⌘+ / ⌘- stay zoom (Ctrl++ / Ctrl+-).
+    @Test(arguments: [(K.leftBracket, Scancode(0x1A)), (K.rightBracket, Scancode(0x1B)), (K.slash, Scancode(0x35))])
+    func germanKeysAtUSBracketPositionsStayCtrlShortcuts(key: UInt16, scancode: Scancode) {
+        #expect(Layouts.german.baseCharacter(of: K.leftBracket) == "ü")
+        #expect(Layouts.german.baseCharacter(of: K.rightBracket) == "+")
+        var h = Harness(Layouts.german)
+        h.chord([.lCmd], key)
+        #expect(h.take() == [down(SC.lCtrl)] + tap(scancode) + [up(SC.lCtrl)])
+    }
+
     @Test func customRuleWithoutModifiersReleasesItsModifiersWithTheKey() {
         var config = KeyboardConfig()
         config.rules.append(ShortcutRule("f13", ["win+shift+s"]))

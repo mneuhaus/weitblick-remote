@@ -50,11 +50,7 @@ void sprung_session_send_scancode(SprungSession *session, uint16_t code, bool ex
     const uint32_t scancode = MAKE_RDP_SCANCODE(code & 0xFF, extended);
     const unsigned index = (code & 0xFF) | (extended ? 0x100u : 0u);
 
-    if (scancode == RDP_SCANCODE_PAUSE) {
-        // Pause has no break code of its own; FreeRDP sends the full E1 make/break sequence.
-        if (down)
-            (void)freerdp_input_send_keyboard_pause_event(input);
-    } else if (down) {
+    if (down) {
         const bool repeat = key_is_down(session, index);
         key_set_down(session, index, true);
         (void)freerdp_input_send_keyboard_event_ex(input, TRUE, repeat, scancode);
@@ -62,6 +58,13 @@ void sprung_session_send_scancode(SprungSession *session, uint16_t code, bool ex
         key_set_down(session, index, false);
         (void)freerdp_input_send_keyboard_event_ex(input, FALSE, FALSE, scancode);
     }
+    input_end(session);
+}
+
+void sprung_session_send_pause(SprungSession *session) {
+    if (!input_begin(session))
+        return;
+    (void)freerdp_input_send_keyboard_pause_event(session->context->input);
     input_end(session);
 }
 

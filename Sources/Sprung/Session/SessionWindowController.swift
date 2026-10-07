@@ -1,17 +1,20 @@
 import AppKit
-import Carbon.HIToolbox
+import KeyboardEngine
 import os
 import SprungKit
 
-/// One session window: owns the RDP session, routes keyboard input to it and keeps the
+/// One session window: owns the RDP session, routes keyboard and clipboard to it and keeps the
 /// remote resolution in sync with the window size.
 @MainActor
-final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSessionDelegate {
+final class SessionWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation, RDPSessionDelegate {
     private let session: RDPSession
     private let sessionView: SessionView
-    private let keyInput: KeyInputHandling
+    private let keyboard: SessionKeyboard
+    private let clipboard: ClipboardSync
+    private var shortcutTap: SystemShortcutTap!
     private let retina: Bool
     private var keyMonitor: Any?
+    private var appObservers: [NSObjectProtocol] = []
     private var pendingResize: DispatchWorkItem?
     private var finished = false
     /// Called once the window has closed.
@@ -23,7 +26,7 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
 
     /// `configuration.desktopSize` and `scale` are derived from the window; Retina asks for
     /// one remote pixel per screen pixel at 200 % Windows scaling.
-    init?(configuration: SessionConfiguration, retina: Bool) {
+    init?(configuration: SessionConfiguration, keyboardConfig: KeyboardConfig, retina: Bool) {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let visible = screen.visibleFrame.size
         let contentSize = NSSize(width: min(1440, visible.width * 0.85).rounded(), height: min(900, visible.height * 0.85).rounded())
@@ -46,22 +49,28 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
         self.session = session
         self.retina = retina
         self.sessionView = SessionView(frame: NSRect(origin: .zero, size: contentSize))
-        self.keyInput = RawKeyInputHandler(keyboard: session)
+        self.keyboard = SessionKeyboard(remote: session, config: keyboardConfig)
+        self.clipboard = ClipboardSync(remote: session.clipboard, pasteboard: .general)
         super.init(window: window)
+        shortcutTap = SystemShortcutTap { [unowned self] event in consumeCapturedKey(event) }
 
         window.contentView = sessionView
         window.delegate = self
         sessionView.session = session
+        sessionView.willSendPointerPress = { [unowned self] in keyboard.prepareForPointerEvent() }
         session.delegate = self
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
+    var isConnected: Bool { session.state == .connected }
+
     func start() {
         showWindow(nil)
         window?.makeFirstResponder(sessionView)
         installKeyMonitor()
+        observeApp()
         window?.subtitle = "Verbinde…"
         session.connect()
     }
@@ -72,7 +81,9 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
         switch event {
         case .connected:
             window?.subtitle = ""
-            if window?.isKeyWindow == true { keyInput.focusGained() }
+            if window?.isKeyWindow == true { keyboard.focusGained() }
+            if NSApp.isActive { clipboard.startWatching() }
+            updateShortcutCapture()
             scheduleResolutionUpdate() // the window may have changed while connecting
         case .disconnected(let code, let message):
             sessionEnded(code: code, message: message)
@@ -89,7 +100,7 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
     private func sessionEnded(code: UInt32, message: String) {
         guard !finished, let window else { return }
         finished = true
-        removeKeyMonitor()
+        stopInput()
         guard code != 0 else {
             window.close()
             return
@@ -101,46 +112,152 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
         alert.beginSheetModal(for: window) { _ in window.close() }
     }
 
+    /// Keyboard, shortcut tap and clipboard let go of the session.
+    private func stopInput() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+        appObservers.forEach(NotificationCenter.default.removeObserver)
+        appObservers = []
+        shortcutTap.stop()
+        keyboard.stop()
+        clipboard.sessionWillEnd()
+    }
+
     // MARK: Keyboard
 
     private func installKeyMonitor() {
+        // A local monitor sees every key event of the app, including key-ups AppKit swallows
+        // while ⌘ is held, before menus get key equivalents.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { [weak self] incoming in
-            // Local monitors run on the main thread.
             nonisolated(unsafe) let event = incoming
             let consumed = MainActor.assumeIsolated { self?.forwardToSession(event) ?? false }
             return consumed ? nil : incoming
         }
     }
 
-    /// Sends a key event of this window to the session unless it is a local shortcut.
+    /// Sends a key event of this window to the session unless the engine keeps it for the app.
     private func forwardToSession(_ event: NSEvent) -> Bool {
-        guard event.window === window, session.state == .connected, !Self.isLocalShortcut(event) else { return false }
-        keyInput.handle(event)
-        return true
+        guard event.window === window, isConnected, let keyEvent = KeyEvent(event) else { return false }
+        return keyboard.handle(keyEvent)
     }
 
-    private func removeKeyMonitor() {
-        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
-        keyMonitor = nil
+    /// Events from the shortcut tap. Reserved shortcuts pass on to AppKit through the monitor.
+    private func consumeCapturedKey(_ event: CGEvent) -> Bool {
+        guard shouldCaptureSystemShortcuts else {
+            DispatchQueue.main.async { [weak self] in self?.updateShortcutCapture() }
+            return false
+        }
+        guard let keyEvent = KeyEvent(event), !keyboard.isReserved(keyEvent) else { return false }
+        return keyboard.handle(keyEvent)
     }
 
-    /// Shortcuts that stay on the Mac: ⌃⌘F (full screen) and ⌘Q (quit).
-    private static func isLocalShortcut(_ event: NSEvent) -> Bool {
-        guard event.type == .keyDown else { return false }
-        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        switch Int(event.keyCode) {
-        case kVK_ANSI_F: return flags == [.command, .control]
-        case kVK_ANSI_Q: return flags == [.command]
-        default: return false
+    private var shouldCaptureSystemShortcuts: Bool {
+        guard isConnected, let window else { return false }
+        return SystemShortcutCapture.setting.applies(
+            sessionIsKey: window.isKeyWindow, appIsActive: NSApp.isActive,
+            isFullScreen: window.styleMask.contains(.fullScreen))
+    }
+
+    private func updateShortcutCapture() {
+        if shouldCaptureSystemShortcuts {
+            if !shortcutTap.start() { Self.logger.notice("system shortcuts stay local: no Accessibility permission") }
+        } else {
+            shortcutTap.stop()
         }
     }
 
+    private func observeApp() {
+        let center = NotificationCenter.default
+        let names: [Notification.Name] = [
+            NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification, .systemShortcutCaptureChanged,
+        ]
+        appObservers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                let name = notification.name
+                MainActor.assumeIsolated { self?.appStateChanged(name) }
+            }
+        }
+    }
+
+    private func appStateChanged(_ name: Notification.Name) {
+        switch name {
+        case NSApplication.didBecomeActiveNotification:
+            guard isConnected else { break }
+            clipboard.checkPasteboard()
+            clipboard.startWatching()
+        case NSApplication.didResignActiveNotification:
+            clipboard.stopWatching()
+        default:
+            break
+        }
+        updateShortcutCapture()
+    }
+
     func windowDidBecomeKey(_ notification: Notification) {
-        if session.state == .connected { keyInput.focusGained() }
+        guard isConnected else { return }
+        keyboard.focusGained()
+        clipboard.checkPasteboard()
+        updateShortcutCapture()
     }
 
     func windowDidResignKey(_ notification: Notification) {
-        keyInput.focusLost()
+        updateShortcutCapture()
+        keyboard.focusLost()
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) { updateShortcutCapture() }
+    func windowDidExitFullScreen(_ notification: Notification) { updateShortcutCapture() }
+
+    // MARK: Session menu
+
+    private static let ctrlAltDelete = try! WindowsChord("ctrl+alt+delete")
+    private static let windowsKey = try! WindowsChord("win")
+    private static let altTab = try! WindowsChord("alt+tab")
+    private static let printScreen = try! WindowsChord("printscreen")
+
+    @objc func sendCtrlAltDelete(_ sender: Any?) { keyboard.tap(Self.ctrlAltDelete) }
+    @objc func sendWindowsKey(_ sender: Any?) { keyboard.tap(Self.windowsKey) }
+    @objc func sendAltTab(_ sender: Any?) { keyboard.tap(Self.altTab) }
+    @objc func sendPrintScreen(_ sender: Any?) { keyboard.tap(Self.printScreen) }
+
+    @objc func selectKeyboardMode(_ sender: NSMenuItem) {
+        var config = keyboard.config
+        config.mode = SessionMenu.keyboardModes[sender.tag]
+        keyboard.apply(config)
+    }
+
+    @objc func selectOptionStrategy(_ sender: NSMenuItem) {
+        var config = keyboard.config
+        config.optionStrategy = SessionMenu.optionStrategies[sender.tag]
+        keyboard.apply(config)
+    }
+
+    @objc func toggleClipboardSync(_ sender: Any?) {
+        clipboard.isEnabled.toggle()
+    }
+
+    @objc func selectSystemShortcutCapture(_ sender: NSMenuItem) {
+        SystemShortcutCapture.setting = SystemShortcutCapture.allCases[sender.tag]
+        NotificationCenter.default.post(name: .systemShortcutCaptureChanged, object: nil)
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        switch item.action {
+        case #selector(selectKeyboardMode(_:)):
+            item.state = SessionMenu.keyboardModes[item.tag] == keyboard.config.mode ? .on : .off
+        case #selector(selectOptionStrategy(_:)):
+            item.state = SessionMenu.optionStrategies[item.tag] == keyboard.config.optionStrategy ? .on : .off
+            return keyboard.config.mode == .macShortcuts
+        case #selector(toggleClipboardSync(_:)):
+            item.state = clipboard.isEnabled ? .on : .off
+            return session.configuration.clipboard
+        case #selector(selectSystemShortcutCapture(_:)):
+            item.state = SystemShortcutCapture.allCases[item.tag] == SystemShortcutCapture.setting ? .on : .off
+            return true
+        default:
+            break
+        }
+        return isConnected
     }
 
     // MARK: Resolution
@@ -158,7 +275,7 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
     }
 
     private func sendResolution() {
-        guard session.state == .connected, let window else { return }
+        guard isConnected, let window else { return }
         let backing = retina ? window.backingScaleFactor : 1
         let size = Self.pixelSize(for: sessionView.bounds.size, backingScale: backing)
         Self.logger.notice("requesting remote size \(size.description, privacy: .public)")
@@ -179,10 +296,14 @@ final class SessionWindowController: NSWindowController, NSWindowDelegate, RDPSe
 
     func windowWillClose(_ notification: Notification) {
         pendingResize?.cancel()
-        removeKeyMonitor()
+        if !finished { stopInput() }
         sessionView.tearDown()
         session.delegate = nil
         session.close()
         onClose?()
     }
+}
+
+extension Notification.Name {
+    static let systemShortcutCaptureChanged = Notification.Name("nrw.neuhaus.sprung.systemShortcutCaptureChanged")
 }

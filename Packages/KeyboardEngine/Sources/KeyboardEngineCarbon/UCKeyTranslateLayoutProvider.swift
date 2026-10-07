@@ -82,6 +82,9 @@ public struct UCKeyTranslateLayoutProvider: KeyboardLayoutProvider {
             deadKeyState = 0
             return ""
         }
+        // After composing, UCKeyTranslate keeps the finished dead key in the upper 16 bits (⌥N space
+        // on German leaves 0x50000); only the lower bits mean a pending dead key. Report "none".
+        if deadKeyState & 0xFFFF == 0 { deadKeyState = 0 }
         return String(utf16CodeUnits: characters, count: length)
     }
 

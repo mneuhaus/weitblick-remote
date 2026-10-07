@@ -27,7 +27,8 @@ struct ConfigurationTests {
           "rules": [
             {"mac": "cmd+left", "windows": ["home"], "keepShift": true},
             {"mac": "cmd+e", "windows": ["win+e"]},
-            {"mac": "cmd+tab", "windows": ["alt+tab"], "keepShift": true, "holdUntilRelease": true}
+            {"mac": "cmd+tab", "windows": ["alt+tab"], "keepShift": true, "holdUntilRelease": true},
+            {"mac": "cmd+[", "windows": ["alt+left"], "typedCharacter": true}
           ],
           "layoutOverride": "00000807",
           "reservedShortcuts": ["cmd+q", "ctrl+opt+cmd+*"]
@@ -38,12 +39,15 @@ struct ConfigurationTests {
             ShortcutRule("cmd+left", ["home"], keepShift: true),
             ShortcutRule("cmd+e", ["win+e"]),
             ShortcutRule("cmd+tab", ["alt+tab"], keepShift: true, holdUntilRelease: true),
+            ShortcutRule("cmd+[", ["alt+left"], typedCharacter: true),
         ])
         #expect(config.layoutOverride == WindowsKeyboardLayoutID(0x0807))
         #expect(config.reservedShortcuts.map(\.description) == ["cmd+q", "ctrl+opt+cmd+*"])
 
         let encoded = String(decoding: try JSONEncoder().encode(config.rules[0]), as: UTF8.self)
         #expect(encoded.contains(#""mac":"cmd+left""#) && encoded.contains(#""windows":["home"]"#))
+        let typed = String(decoding: try JSONEncoder().encode(config.rules[3]), as: UTF8.self)
+        #expect(typed.contains(#""typedCharacter":true"#))
     }
 
     @Test(arguments: [
@@ -53,6 +57,8 @@ struct ConfigurationTests {
         #"{"rules": [{"mac": "cmd+x", "windows": ["cmd+x"]}]}"#,
         #"{"rules": [{"mac": "cmd+tab", "windows": ["alt+tab", "tab"], "holdUntilRelease": true}]}"#,
         #"{"rules": [{"mac": "shift+tab", "windows": ["alt+tab"], "holdUntilRelease": true}]}"#,
+        #"{"rules": [{"mac": "cmd+left", "windows": ["home"], "typedCharacter": true}]}"#,
+        #"{"rules": [{"mac": "cmd+[", "windows": ["home"], "typedCharacter": true, "keepShift": true}]}"#,
         #"{"reservedShortcuts": ["cmd+printscreen"]}"#,
         #"{"layoutOverride": "German"}"#,
     ])

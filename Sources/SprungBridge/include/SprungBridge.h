@@ -34,6 +34,8 @@ typedef struct {
     uint32_t keyboardLayout;
     bool ignoreCertificate;
     bool audioPlayback;
+    /// Loads the clipboard channel (cliprdr); see the clipboard callbacks and functions.
+    bool clipboard;
     /// Directory for FreeRDP's own state (certificate and license stores). Keeps Sprung
     /// away from ~/.config/freerdp; NULL uses that default.
     const char *stateDirectory;
@@ -45,6 +47,13 @@ typedef struct {
     int32_t width;
     int32_t height;
 } SprungRect;
+
+/// A clipboard format. Standard Windows formats (CF_UNICODETEXT = 13, CF_DIB = 8, …) have no name;
+/// registered ones ("HTML Format", "PNG", …) carry their name and an id chosen by the announcing side.
+typedef struct {
+    uint32_t id;
+    const char *name; ///< NULL for standard formats
+} SprungClipboardFormat;
 
 typedef struct {
     const char *host;
@@ -83,6 +92,20 @@ typedef struct {
     void (*pointerPosition)(void *userData, uint32_t x, uint32_t y);
     /// Return true to accept the certificate for this session only. NULL accepts.
     bool (*verifyCertificate)(void *userData, const SprungCertificateInfo *info);
+
+    // Clipboard (only with SprungSessionConfig.clipboard). These fire on the clipboard channel thread.
+    /// The channel is up: announce the local clipboard now (sprung_session_clipboard_announce).
+    void (*clipboardReady)(void *userData);
+    /// The server took a format list we announced (false: it rejected it).
+    void (*clipboardAnnounced)(void *userData, bool accepted);
+    /// The server's clipboard changed. `formats` is valid only during the call.
+    void (*clipboardRemoteFormats)(void *userData, const SprungClipboardFormat *formats, size_t count);
+    /// The server wants local clipboard data in `formatId` (an id we announced). Answer once with
+    /// sprung_session_clipboard_respond, from any thread and at any later time.
+    void (*clipboardDataRequested)(void *userData, uint32_t formatId);
+    /// Answer to sprung_session_clipboard_request; `data` is NULL if the server failed. Valid only
+    /// during the call.
+    void (*clipboardDataReceived)(void *userData, const uint8_t *data, size_t size);
 } SprungCallbacks;
 
 /// Locked view of the framebuffer, see sprung_session_framebuffer_acquire.
@@ -132,11 +155,12 @@ void sprung_session_framebuffer_release(SprungSession *session);
 void sprung_session_set_resolution(SprungSession *session, uint32_t width, uint32_t height,
                                    uint32_t desktopScaleFactor, uint32_t deviceScaleFactor);
 
-// Keyboard. Scancodes are PC/AT set 1 make codes (0x01…0x7F) plus the extended (E0) flag.
-// Pause/Break is (0x46, extended), as in FreeRDP; it is sent as the E1 sequence on key-down.
-// A key-down for a key that is already down is sent as a repeat. Key-ups for keys that are
-// not down are dropped.
+// Keyboard. Scancodes are PC/AT set 1 make codes (0x01…0x7F) plus the extended (E0) flag; (0x46,
+// extended) is Break (Ctrl+Pause). A key-down for a key that is already down is sent as a repeat.
+// Key-ups for keys that are not down are dropped.
 void sprung_session_send_scancode(SprungSession *session, uint16_t code, bool extended, bool down);
+/// The Pause key: its whole E1 make/break sequence (Pause has no key-up of its own).
+void sprung_session_send_pause(SprungSession *session);
 /// UTF-16 code unit; characters outside the BMP need two calls (surrogate pair).
 void sprung_session_send_unicode(SprungSession *session, uint16_t codeUnit, bool down);
 /// Sets the remote lock-key state (synchronize event).
@@ -152,6 +176,16 @@ void sprung_session_send_mouse_button(SprungSession *session, SprungMouseButton 
 /// the user), positive horizontal scrolls right. Large deltas are split into several events.
 void sprung_session_send_mouse_wheel(SprungSession *session, int32_t vertical, int32_t horizontal,
                                      int32_t x, int32_t y);
+
+// Clipboard. All return false if the clipboard channel is not up. Requests and responses pair up in
+// order (the protocol has no ids): keep at most one request outstanding.
+/// Announces the local clipboard formats. Names are copied.
+bool sprung_session_clipboard_announce(SprungSession *session, const SprungClipboardFormat *formats, size_t count);
+/// Asks the server for its clipboard data in `formatId` (a server format id); the answer arrives
+/// through clipboardDataReceived.
+bool sprung_session_clipboard_request(SprungSession *session, uint32_t formatId);
+/// Answers clipboardDataRequested; `ok` false reports failure. The data is copied.
+bool sprung_session_clipboard_respond(SprungSession *session, bool ok, const uint8_t *data, size_t size);
 
 #ifdef __cplusplus
 }

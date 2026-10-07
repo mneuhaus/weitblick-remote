@@ -33,6 +33,27 @@ struct TextInputTests {
         #expect(h.take() == text("~"))
     }
 
+    /// UCKeyTranslate keeps the finished dead key in the upper state bits; nothing is pending then,
+    /// so ⌫, arrows and space after "~" are ordinary keys again.
+    @Test func composedAccentLeavesNothingPending() {
+        var h = Harness()
+        h.chord([.lOpt], K.n)
+        h.type(K.space)
+        h.type(K.backspace)
+        h.type(K.left)
+        h.type(K.space)
+        #expect(h.take() == text("~") + tap(SC.backspace) + tap(SC.left) + tap(SC.space))
+    }
+
+    @Test func secondDeadKeyStaysPending() {
+        // ⌥N then ⌥U: "~" is typed and the diaeresis waits for its letter (as on the Mac).
+        var h = Harness()
+        h.chord([.lOpt], K.n)
+        h.chord([.lOpt], K.u)
+        h.type(K.a)
+        #expect(h.take() == text("~") + text("ä"))
+    }
+
     @Test func deadKeyThenNonComposingLetterTypesBoth() {
         var h = Harness()
         h.chord([.lOpt], K.n)

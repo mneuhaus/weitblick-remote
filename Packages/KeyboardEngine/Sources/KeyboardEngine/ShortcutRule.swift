@@ -11,21 +11,33 @@ public struct ShortcutRule: Hashable, Sendable {
     /// The output modifiers stay down until the rule's ⌘ (or ⌥) is released, and further keys pass
     /// through with them (⌘⇥⇥⇥ -> Alt held, Tab, Tab, Tab).
     public var holdUntilRelease: Bool
+    /// Match the trigger by the character its key types with the held ⌥/⇧ in the current layout (as
+    /// Jump does) instead of by the key's unmodified character or US position; ⌘ and ⌃ must match
+    /// exactly. `cmd+[` is then ⌘[ on US and ⌘⌥5 on German, where ⌘Ü and ⌘+ keep the default rule.
+    public var typedCharacter: Bool
 
-    public init(mac: MacChord, windows: [WindowsChord], keepShift: Bool = false, holdUntilRelease: Bool = false) {
+    public init(
+        mac: MacChord, windows: [WindowsChord], keepShift: Bool = false, holdUntilRelease: Bool = false,
+        typedCharacter: Bool = false
+    ) {
         self.mac = mac
         self.windows = windows
         self.keepShift = keepShift
         self.holdUntilRelease = holdUntilRelease
+        self.typedCharacter = typedCharacter
     }
 
     /// Notation convenience for literals; traps on invalid notation.
-    init(_ mac: String, _ windows: [String], keepShift: Bool = false, holdUntilRelease: Bool = false) {
+    init(
+        _ mac: String, _ windows: [String], keepShift: Bool = false, holdUntilRelease: Bool = false,
+        typedCharacter: Bool = false
+    ) {
         self.init(
             mac: try! MacChord(mac),
             windows: windows.map { try! WindowsChord($0) },
             keepShift: keepShift,
-            holdUntilRelease: holdUntilRelease
+            holdUntilRelease: holdUntilRelease,
+            typedCharacter: typedCharacter
         )
     }
 
@@ -47,26 +59,48 @@ public struct ShortcutRule: Hashable, Sendable {
         ShortcutRule("cmd+tab", ["alt+tab"], keepShift: true, holdUntilRelease: true),
         ShortcutRule("cmd+space", ["win"]),
         ShortcutRule("opt+cmd+escape", ["ctrl+shift+escape"]),
+        // From Jump's default input profile. ⌘Q closes the remote window; the app quits via its menu
+        // (or ⌘Q while no session has focus), so ⌘Q is deliberately not a reserved shortcut.
+        ShortcutRule("cmd+q", ["alt+f4"]),
+        ShortcutRule("cmd+[", ["alt+left"], typedCharacter: true),
+        ShortcutRule("cmd+]", ["alt+right"], typedCharacter: true),
         ShortcutRule("ctrl+opt+backspace", ["ctrl+alt+delete"]),
         ShortcutRule("ctrl+opt+delete", ["ctrl+alt+delete"]),
     ]
+
+    func matches(keyCode: UInt16, modifiers: MacModifiers, layout: any KeyboardLayoutProvider) -> Bool {
+        guard typedCharacter else { return mac.matches(keyCode: keyCode, modifiers: modifiers, layout: layout) }
+        guard case .character(let character) = mac.key, PhysicalKeyMap.keyClass(of: keyCode) == .character else {
+            return false
+        }
+        let exact: MacModifiers = [.command, .control]
+        guard modifiers.intersection(exact) == mac.modifiers.intersection(exact),
+              modifiers.isSuperset(of: mac.modifiers)
+        else { return false }
+        var layoutModifiers: LayoutModifiers = []
+        if modifiers.contains(.option) { layoutModifiers.insert(.option) }
+        if modifiers.contains(.shift) { layoutModifiers.insert(.shift) }
+        var deadKeyState: UInt32 = 0
+        let typed = layout.translate(keyCode: keyCode, modifiers: layoutModifiers, deadKeyState: &deadKeyState)
+        return typed == String(character)
+    }
 }
 
 extension [ShortcutRule] {
     /// Exact modifier matches win over `keepShift` matches; otherwise table order.
     func match(keyCode: UInt16, modifiers: MacModifiers, layout: any KeyboardLayoutProvider) -> ShortcutRule? {
-        if let exact = first(where: { $0.mac.matches(keyCode: keyCode, modifiers: modifiers, layout: layout) }) {
+        if let exact = first(where: { $0.matches(keyCode: keyCode, modifiers: modifiers, layout: layout) }) {
             return exact
         }
         guard modifiers.contains(.shift) else { return nil }
         let withoutShift = modifiers.subtracting(.shift)
-        return first { $0.keepShift && $0.mac.matches(keyCode: keyCode, modifiers: withoutShift, layout: layout) }
+        return first { $0.keepShift && $0.matches(keyCode: keyCode, modifiers: withoutShift, layout: layout) }
     }
 }
 
 extension ShortcutRule: Codable {
     private enum CodingKeys: String, CodingKey {
-        case mac, windows, keepShift, holdUntilRelease
+        case mac, windows, keepShift, holdUntilRelease, typedCharacter
     }
 
     public init(from decoder: any Decoder) throws {
@@ -75,7 +109,8 @@ extension ShortcutRule: Codable {
             mac: try container.decode(MacChord.self, forKey: .mac),
             windows: try container.decode([WindowsChord].self, forKey: .windows),
             keepShift: try container.decodeIfPresent(Bool.self, forKey: .keepShift) ?? false,
-            holdUntilRelease: try container.decodeIfPresent(Bool.self, forKey: .holdUntilRelease) ?? false
+            holdUntilRelease: try container.decodeIfPresent(Bool.self, forKey: .holdUntilRelease) ?? false,
+            typedCharacter: try container.decodeIfPresent(Bool.self, forKey: .typedCharacter) ?? false
         )
         if windows.isEmpty {
             throw DecodingError.dataCorruptedError(forKey: .windows, in: container, debugDescription: "empty")
@@ -86,6 +121,13 @@ extension ShortcutRule: Codable {
                 forKey: .holdUntilRelease, in: container,
                 debugDescription: "needs a ⌘ or ⌥ trigger and exactly one output chord with a key")
         }
+        if typedCharacter {
+            guard case .character = mac.key, !keepShift else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .typedCharacter, in: container,
+                    debugDescription: "needs a character key and no keepShift (⇧ belongs to the typed character)")
+            }
+        }
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -94,6 +136,7 @@ extension ShortcutRule: Codable {
         try container.encode(windows, forKey: .windows)
         if keepShift { try container.encode(true, forKey: .keepShift) }
         if holdUntilRelease { try container.encode(true, forKey: .holdUntilRelease) }
+        if typedCharacter { try container.encode(true, forKey: .typedCharacter) }
     }
 }
 

@@ -6,6 +6,8 @@ import SprungKit
 @MainActor
 final class SessionView: NSView {
     weak var session: RDPSession?
+    /// Runs before a mouse button press or wheel event goes out (⌘-click = Ctrl-click).
+    var willSendPointerPress: (() -> Void)?
 
     private let presenter = FramePresenter()
     private let cursors = RemoteCursors()
@@ -146,6 +148,7 @@ final class SessionView: NSView {
     }
 
     private func send(_ button: MouseButton, down: Bool, _ event: NSEvent) {
+        if down { willSendPointerPress?() }
         let point = remotePoint(event)
         session?.sendMouseMove(to: point)
         session?.sendMouseButton(button, down: down, at: point)
@@ -156,6 +159,7 @@ final class SessionView: NSView {
             deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
             precise: event.hasPreciseScrollingDeltas, gestureBegan: event.phase.contains(.began))
         guard notches.vertical != 0 || notches.horizontal != 0 else { return }
+        willSendPointerPress?()
         session?.sendMouseWheel(vertical: notches.vertical, horizontal: notches.horizontal, at: remotePoint(event))
     }
 }

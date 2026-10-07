@@ -1,4 +1,6 @@
 import AppKit
+import KeyboardEngine
+import KeyboardEngineCarbon
 import SprungKit
 import SwiftUI
 
@@ -29,6 +31,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let open = sessions.count
+        guard open > 0 else { return .terminateNow }
+        let alert = NSAlert()
+        alert.messageText = "Sprung beenden?"
+        alert.informativeText = open == 1
+            ? "Die offene Sitzung wird getrennt." : "Die \(open) offenen Sitzungen werden getrennt."
+        alert.addButton(withTitle: "Beenden")
+        alert.addButton(withTitle: "Abbrechen")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
         sessions.forEach { $0.close() }
@@ -53,7 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             host: request.host, username: request.username, password: request.password,
             desktopSize: PixelSize(width: 1280, height: 800))
         configuration.domain = request.domain
-        guard let controller = SessionWindowController(configuration: configuration, retina: retina) else {
+        // M4 brings per-connection keyboard settings; until then the defaults.
+        let keyboardConfig = KeyboardConfig()
+        configuration.keyboardLayout = (keyboardConfig.layoutOverride ?? .current).rawValue
+        guard let controller = SessionWindowController(
+            configuration: configuration, keyboardConfig: keyboardConfig, retina: retina)
+        else {
             NSAlert(error: CocoaError(.featureUnsupported)).runModal()
             return
         }

@@ -35,9 +35,10 @@ enum K {
     static let c: UInt16 = 0x08, v: UInt16 = 0x09, x: UInt16 = 0x07, q: UInt16 = 0x0C, t: UInt16 = 0x11
     /// kVK_ANSI_Z / kVK_ANSI_Y: named after the US legend (QWERTZ swaps them).
     static let ansiZ: UInt16 = 0x06, ansiY: UInt16 = 0x10
-    static let one: UInt16 = 0x12, two: UInt16 = 0x13, five: UInt16 = 0x17, seven: UInt16 = 0x1A
+    static let one: UInt16 = 0x12, two: UInt16 = 0x13, five: UInt16 = 0x17, six: UInt16 = 0x16, seven: UInt16 = 0x1A
     static let eight: UInt16 = 0x1C, nine: UInt16 = 0x19, zero: UInt16 = 0x1D
     static let equal: UInt16 = 0x18, comma: UInt16 = 0x2B
+    static let leftBracket: UInt16 = 0x21, rightBracket: UInt16 = 0x1E, slash: UInt16 = 0x2C
     static let isoSection: UInt16 = 0x0A, grave: UInt16 = 0x32
     static let space: UInt16 = 0x31, tab: UInt16 = 0x30, returnKey: UInt16 = 0x24
     static let backspace: UInt16 = 0x33, escape: UInt16 = 0x35, forwardDelete: UInt16 = 0x75

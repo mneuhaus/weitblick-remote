@@ -116,7 +116,8 @@ M3 pitfalls to watch:
   and tapping Shift per character could trigger Windows Sticky Keys. Space stays a scancode.
 - **Repeats are re-evaluated** with the current modifiers (mirrors macOS). Same scancode -> one more
   make; changed target (⌘← held, ⌘ released) -> old key released first.
-- **Reserved shortcuts** (`cmd+q`, `ctrl+cmd+f`, `ctrl+opt+cmd+*`, `ctrl+opt+shift+cmd+*`) apply in
+- **Reserved shortcuts** (`ctrl+cmd+f`, `ctrl+opt+cmd+*`, `ctrl+opt+shift+cmd+*`; ⌘Q is a rule, see
+  the spec update below) apply in
   both modes; exact modifiers, `*` = any key. Pending taps are cancelled, chord modifiers released.
   In Windows-direct mode a Ctrl tap masks the already-pressed Win/Alt so its release is no Start-menu tap.
 - **Caps Lock:** compared on every event with the remote state; a change sends Caps make+break.
@@ -139,9 +140,37 @@ M3 pitfalls to watch:
 - Lone ⌥ tap -> Alt tap (menu bar / ribbon key tips): wanted, or rather nothing?
 - Tap timeout 0.5 s for ⌘ -> Win: Jump has none, I think; keep?
 
+## Entscheidungen Orchestrator (2026-10-07)
+- Smart: ⌥A/⌥O usw. → Alt+Buchstabe bleibt so (å/ø braucht Marc nicht; wer es braucht, nimmt "Immer Zeichen" oder Jump-Stil).
+- ⌥ allein antippen → Alt-Tipp bleibt (Windows-Standardverhalten für Menüleiste/Ribbon).
+- 0,5 s Grenze für ⌘ → Win-Tipp bleibt.
+
+(Restored after my worklog rewrite accidentally dropped this block; all three decisions keep the
+behaviour that was already implemented, so no code change followed.)
+
+## Spec update 2026-10-07 (Jump-Profil) — implemented
+
+SPEC gained three rules from Jump's default input profile plus a change to the local shortcuts:
+
+- `⌘Q → Alt+F4` ("wie Jump; Sprung beenden über Menü bzw. ⌘Q außerhalb einer Sitzung"), so **⌘Q is no
+  longer a reserved shortcut**: `defaultReservedShortcuts` is now only `ctrl+cmd+f`,
+  `ctrl+opt+cmd+*`, `ctrl+opt+shift+cmd+*`. M3/M4 must quit Sprung from the menu and only let ⌘Q
+  through to the app while no session view has focus — the engine always translates it now.
+- `⌘[ → Alt+←`, `⌘] → Alt+→`. German has no unmodified `[`/`]` (they are ⌥5/⌥6), so the rule resolves
+  to the US positions (kVK_ANSI_LeftBracket/RightBracket = Ü and + on a German ISO board). That is how
+  macOS itself resolves key equivalents the current layout cannot type, and it is what Jump does.
+  **Superseded in M3** (orchestrator decision, ⌘+ must stay zoom): the rules now match by typed
+  character (`typedCharacter`), ⌘⌥5 / ⌘⌥6 on German; see `m3-integration.md`.
+- `⌃⌥⌫ → Strg+Alt+Entf` and `⌘⇧Z → Strg+Y` were already in the defaults.
+- ⌘Q in "Windows 1:1" stays Win+Q (no rules in that mode), per spec.
+
+Tests added: `commandQClosesTheRemoteWindow`, `commandBracketsAreBrowserBackAndForward`,
+`commandBracketsUseTheUSPositionOnGermanLayouts`, `commandQIsWinQNotAltF4`. The reserved-shortcut
+tests now use ⌃⌘F and a custom `cmd+k` instead of ⌘Q.
+
 ## Next step
 
-M3 integration (other agent). For M2: nothing open except answers to the questions above.
+M3 integration (other agent). For M2: nothing open.
 
 ## Entscheidungen Orchestrator (2026-10-07)
 - Smart: ⌥A/⌥O usw. → Alt+Buchstabe bleibt so (å/ø braucht Marc nicht; wer es braucht, nimmt "Immer Zeichen" oder Jump-Stil).

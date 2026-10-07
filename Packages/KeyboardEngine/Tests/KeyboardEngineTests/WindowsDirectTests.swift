@@ -57,13 +57,21 @@ struct WindowsDirectTests {
     }
 
     @Test func reservedShortcutsStillApply() {
-        var h = Harness(config: direct)
+        var config = direct
+        config.reservedShortcuts.append(try! MacChord("cmd+k"))
+        var h = Harness(config: config)
         h.press(.lCmd)
-        h.down(K.q)
+        h.down(0x28) // kVK_ANSI_K
         #expect(h.lastPassedToApp)
-        h.up(K.q)
+        h.up(0x28)
         h.release(.lCmd)
         // The Ctrl tap keeps Windows from opening the Start menu when ⌘ goes up.
         #expect(h.take() == [down(SC.lWin)] + tap(SC.lCtrl) + [up(SC.lWin)])
+    }
+
+    @Test func commandQIsWinQNotAltF4() {
+        var h = Harness(config: direct)
+        h.chord([.lCmd], K.q)
+        #expect(h.take() == [down(SC.lWin)] + tap(SC.q) + [up(SC.lWin)])
     }
 }

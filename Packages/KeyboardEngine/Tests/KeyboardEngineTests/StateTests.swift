@@ -150,19 +150,24 @@ struct StateTests {
 
     @Test func reservedShortcutsStayInTheApp() {
         var h = Harness()
+        h.press(.lCtrl)
         h.press(.lCmd)
-        h.down(K.q)
+        _ = h.take()
+        h.down(K.f)
         #expect(h.lastPassedToApp)
-        h.up(K.q)
+        h.up(K.f)
         #expect(h.lastPassedToApp)
         h.release(.lCmd)
-        #expect(h.take() == [])
+        h.release(.lCtrl)
+        // Only the physical ⌃ was ever sent; the full-screen shortcut itself stays local.
+        #expect(h.take() == [up(SC.lCtrl)])
 
         h.chord([.lCtrl, .lOpt, .lCmd], K.a)
         #expect(h.take() == [down(SC.lCtrl), up(SC.lCtrl)])
         for (modifiers, key, reserved) in [
             ([Mod.lCtrl, .lCmd], K.f, true), ([.lCtrl, .lOpt, .lShift, .lCmd], K.x, true),
             ([.lCmd], K.ansiY, false), ([.lCmd, .lShift], K.q, false),
+            ([.lCmd], K.q, false), ([.lOpt, .lCmd], K.f, false),
         ] {
             modifiers.forEach { h.press($0) }
             h.down(key)
@@ -173,11 +178,13 @@ struct StateTests {
     }
 
     @Test func reservedShortcutReleasesChordModifiers() {
-        var h = Harness()
+        var config = KeyboardConfig()
+        config.reservedShortcuts.append(try! MacChord("cmd+k"))
+        var h = Harness(config: config)
         h.press(.lCmd)
         h.type(K.c)
         _ = h.take()
-        h.down(K.q)
+        h.down(0x28) // kVK_ANSI_K
         #expect(h.lastPassedToApp)
         #expect(h.take() == [up(SC.lCtrl)])
     }
@@ -188,6 +195,19 @@ struct StateTests {
         #expect(engine.isReserved(KeyEvent(kind: .down, keyCode: K.f, modifiers: [.leftControl, .leftCommand])))
         #expect(!engine.isReserved(KeyEvent(kind: .down, keyCode: K.f, modifiers: [.leftCommand])))
         #expect(!engine.isReserved(KeyEvent(kind: .flagsChanged, keyCode: 0x37, modifiers: [.leftCommand])))
+    }
+
+    @Test func menuChordsAreTappedAndModifiersReturnToThePhysicalState() throws {
+        var h = Harness()
+        #expect(h.engine.tap(try WindowsChord("ctrl+alt+delete")) ==
+            [down(SC.lCtrl), down(SC.lAlt)] + tap(SC.delete) + [up(SC.lAlt), up(SC.lCtrl)])
+        #expect(h.engine.tap(try WindowsChord("win")) == tap(SC.lWin))
+        #expect(h.engine.tap(try WindowsChord("printscreen")) == tap(SC.printScreen))
+        h.press(.lShift)
+        _ = h.take()
+        // A physically held ⇧ is lifted for Alt+Tab and pressed again afterwards.
+        #expect(h.engine.tap(try WindowsChord("alt+tab")) ==
+            [up(SC.lShift), down(SC.lAlt)] + tap(SC.tab) + [up(SC.lAlt), down(SC.lShift)])
     }
 
     @Test func resetForgetsWithoutSending() {

@@ -5,9 +5,11 @@ import SprungBridge
 /// session on the main actor.
 final class EventRelay: Sendable {
     @MainActor weak var session: RDPSession?
+    let clipboard: RemoteClipboard
     private let certificatePolicy: @Sendable (ServerCertificate) -> Bool
 
-    init(certificatePolicy: @escaping @Sendable (ServerCertificate) -> Bool) {
+    init(clipboard: RemoteClipboard, certificatePolicy: @escaping @Sendable (ServerCertificate) -> Bool) {
+        self.clipboard = clipboard
         self.certificatePolicy = certificatePolicy
     }
 
@@ -69,6 +71,31 @@ final class EventRelay: Sendable {
                 subject: string(info.subject), issuer: string(info.issuer),
                 fingerprint: string(info.fingerprint), changed: info.changed)
             return EventRelay.from(userData).verify(certificate)
+        }
+        // Clipboard events stay on the channel thread; RemoteClipboard's delegate decides where to go.
+        callbacks.clipboardReady = { userData in
+            let clipboard = EventRelay.from(userData).clipboard
+            clipboard.notify { $0.remoteClipboardDidBecomeReady(clipboard) }
+        }
+        callbacks.clipboardAnnounced = { userData, accepted in
+            let clipboard = EventRelay.from(userData).clipboard
+            clipboard.notify { $0.remoteClipboard(clipboard, didAnswerAnnouncement: accepted) }
+        }
+        callbacks.clipboardRemoteFormats = { userData, formats, count in
+            let clipboard = EventRelay.from(userData).clipboard
+            let list = UnsafeBufferPointer(start: formats, count: count).map { format in
+                RemoteClipboardFormat(id: format.id, name: format.name.map { String(cString: $0) })
+            }
+            clipboard.notify { $0.remoteClipboard(clipboard, didChangeFormats: list) }
+        }
+        callbacks.clipboardDataRequested = { userData, formatID in
+            let clipboard = EventRelay.from(userData).clipboard
+            clipboard.notify { $0.remoteClipboard(clipboard, didRequestFormat: formatID) }
+        }
+        callbacks.clipboardDataReceived = { userData, bytes, size in
+            let clipboard = EventRelay.from(userData).clipboard
+            let data = bytes.map { Data(bytes: $0, count: size) }
+            clipboard.notify { $0.remoteClipboard(clipboard, didReceive: data) }
         }
         return callbacks
     }

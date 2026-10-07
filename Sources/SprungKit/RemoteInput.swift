@@ -1,12 +1,14 @@
 import SprungBridge
 
-/// Keyboard output of a session, the target of the keyboard handler (raw table in M1,
-/// KeyboardEngine from M3 on). Scancodes are PC/AT set 1 make codes plus the E0 flag.
+/// Keyboard output of a session, fed by the KeyboardEngine. Scancodes are PC/AT set 1 make codes
+/// plus the E0 flag.
 @MainActor
 public protocol RemoteKeyboard: AnyObject {
     /// A down for a key that is already down is sent as a repeat; ups for keys that are not
-    /// down are dropped. Pause is (0x46, extended).
+    /// down are dropped. (0x46, extended) is Break.
     func sendScancode(_ code: UInt16, extended: Bool, down: Bool)
+    /// The Pause key (make and break in one).
+    func sendPause()
     /// UTF-16 code unit; send surrogate pairs as two units.
     func sendUnicode(_ codeUnit: UInt16, down: Bool)
     func sendSync(capsLock: Bool, numLock: Bool, scrollLock: Bool)
@@ -42,6 +44,10 @@ public struct RemotePoint: Equatable, Sendable {
 extension RDPSession: RemoteKeyboard {
     public func sendScancode(_ code: UInt16, extended: Bool, down: Bool) {
         sprung_session_send_scancode(rawSession, code, extended, down)
+    }
+
+    public func sendPause() {
+        sprung_session_send_pause(rawSession)
     }
 
     public func sendUnicode(_ codeUnit: UInt16, down: Bool) {

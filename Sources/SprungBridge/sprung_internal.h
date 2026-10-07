@@ -8,6 +8,7 @@
 #include <stdatomic.h>
 
 #include <freerdp/client.h>
+#include <freerdp/client/cliprdr.h>
 #include <freerdp/client/disp.h>
 #include <freerdp/codec/region.h>
 #include <freerdp/freerdp.h>
@@ -53,6 +54,10 @@ struct SprungSession {
     uint32_t deviceScaleFactor;
 
     atomic_uint_fast64_t nextPointerId;
+
+    // Clipboard channel, set while it is connected.
+    pthread_mutex_t clipboardLock;
+    CliprdrClientContext *cliprdr;
 };
 
 static inline SprungSession *sprung_session_from_context(rdpContext *context) {
@@ -75,5 +80,9 @@ DWORD sprung_resolution_wait_timeout(SprungSession *session); // event loop wait
 
 // sprung_input.c
 void sprung_input_set_ready(SprungSession *session, bool ready);
+
+// sprung_clipboard.c
+void sprung_clipboard_channel_connected(SprungSession *session, CliprdrClientContext *cliprdr);
+void sprung_clipboard_channel_disconnected(SprungSession *session);
 
 #endif

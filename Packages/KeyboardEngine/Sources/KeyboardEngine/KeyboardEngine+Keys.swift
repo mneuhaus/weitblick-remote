@@ -45,6 +45,21 @@ extension KeyboardEngine {
         return true
     }
 
+    /// Taps a Windows key combination outside the key event flow (session menu: Ctrl+Alt+Del, Win,
+    /// Alt+Tab, Print Screen). Afterwards the remote modifiers match the physical ones again.
+    public mutating func tap(_ chord: WindowsChord) -> [RDPKeyAction] {
+        interruptModifierTaps()
+        var target: KeyTarget?
+        if let key = chord.key {
+            let keyboardType = config.keyboardTypeOverride ?? layout.keyboardType
+            guard let resolved = windowsTarget(for: key, keyboardType: keyboardType) else { return [] }
+            target = resolved
+        }
+        tap(OutputChord(modifiers: chord.modifiers, target: target))
+        remote.setModifiers(idleModifiers(), into: &output)
+        return takeOutput()
+    }
+
     mutating func reservedKeyDown() {
         interruptModifierTaps()
         remote.setModifiers(idleModifiers(), into: &output)

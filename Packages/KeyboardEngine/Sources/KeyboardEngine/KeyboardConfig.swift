@@ -53,9 +53,10 @@ public struct KeyboardConfig: Hashable, Sendable {
         self.modifierTapTimeout = modifierTapTimeout
     }
 
-    /// ⌘Q (quit), ⌃⌘F (full screen), everything with ⌃⌥⌘ (app shortcuts).
+    /// ⌃⌘F (full screen) and everything with ⌃⌥⌘ (app shortcuts). ⌘Q is NOT reserved: in a session it
+    /// is Alt+F4 (`ShortcutRule.defaults`); quitting Sprung runs through the menu.
     public static let defaultReservedShortcuts: [MacChord] = [
-        "cmd+q", "ctrl+cmd+f", "ctrl+opt+cmd+*", "ctrl+opt+shift+cmd+*",
+        "ctrl+cmd+f", "ctrl+opt+cmd+*", "ctrl+opt+shift+cmd+*",
     ].map { try! MacChord($0) }
 }
 

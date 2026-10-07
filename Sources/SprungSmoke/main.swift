@@ -53,6 +53,7 @@ func memoryFootprintMB() -> Double {
 func makeConfiguration(_ vm: TestVMEnvironment, size: PixelSize) -> SessionConfiguration {
     var configuration = SessionConfiguration(host: vm.host, username: vm.username, password: vm.password, desktopSize: size)
     configuration.audioPlayback = false
+    configuration.clipboard = false // covered by sprung-e2e
     return configuration
 }
 

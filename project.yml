@@ -17,6 +17,10 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
 
+packages:
+  KeyboardEngine:
+    path: Packages/KeyboardEngine
+
 settingGroups:
   freerdpLink:
     LIBRARY_SEARCH_PATHS: $(SRCROOT)/vendor/install/lib
@@ -71,6 +75,8 @@ targets:
     dependencies:
       - target: SprungKit
       - target: SprungBridge
+      - package: KeyboardEngine
+        product: KeyboardEngine
     scheme:
       testTargets: [SprungTests]
     settings:
@@ -100,7 +106,27 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung.smoke
 
-  # Pure view logic of the app, compiled in directly so the tests need no app host.
+  # Keyboard and clipboard end-to-end test against the VM (scripts/e2e.sh).
+  sprung-e2e:
+    type: tool
+    platform: macOS
+    sources:
+      - Sources/SprungE2E
+      - Sources/SprungSmoke/SmokeProbe.swift
+      - Sources/SprungSmoke/FramebufferSnapshot.swift
+      - Sources/Sprung/Input/RemoteKeyboard+Actions.swift
+    dependencies:
+      - target: SprungKit
+      - target: SprungBridge
+      - package: KeyboardEngine
+        product: KeyboardEngine
+    scheme: {}
+    settings:
+      groups: [freerdpLink]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung.e2e
+
+  # Pure logic of the app, compiled in directly so the tests need no app host.
   SprungTests:
     type: bundle.unit-test
     platform: macOS
@@ -109,6 +135,7 @@ targets:
       - Sources/Sprung/Session/DesktopGeometry.swift
       - Sources/Sprung/Session/ScrollAccumulator.swift
       - Sources/Sprung/Session/RemoteCursors.swift
+      - Sources/Sprung/Input/SystemShortcutTap.swift
     dependencies:
       - target: SprungKit
       - target: SprungBridge

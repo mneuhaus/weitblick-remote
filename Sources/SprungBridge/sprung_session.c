@@ -23,6 +23,8 @@ static void on_channel_connected(void *context, const ChannelConnectedEventArgs 
     SprungSession *session = sprung_session_from_context(context);
     if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
         sprung_resolution_channel_connected(session, (DispClientContext *)e->pInterface);
+    else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
+        sprung_clipboard_channel_connected(session, (CliprdrClientContext *)e->pInterface);
     else
         freerdp_client_OnChannelConnectedEventHandler(context, e);
 }
@@ -31,6 +33,8 @@ static void on_channel_disconnected(void *context, const ChannelDisconnectedEven
     SprungSession *session = sprung_session_from_context(context);
     if (strcmp(e->name, DISP_DVC_CHANNEL_NAME) == 0)
         sprung_resolution_channel_disconnected(session);
+    else if (strcmp(e->name, CLIPRDR_SVC_CHANNEL_NAME) == 0)
+        sprung_clipboard_channel_disconnected(session);
     else
         freerdp_client_OnChannelDisconnectedEventHandler(context, e);
 }
@@ -140,7 +144,7 @@ static bool apply_config(rdpSettings *s, const SprungSessionConfig *c) {
            freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, c->ignoreCertificate) &&
            freerdp_settings_set_bool(s, FreeRDP_CertificateCallbackPreferPEM, FALSE) &&
            freerdp_settings_set_bool(s, FreeRDP_AudioPlayback, c->audioPlayback) &&
-           freerdp_settings_set_bool(s, FreeRDP_RedirectClipboard, FALSE) &&
+           freerdp_settings_set_bool(s, FreeRDP_RedirectClipboard, c->clipboard) &&
            freerdp_settings_set_bool(s, FreeRDP_AutoReconnectionEnabled, FALSE) &&
            // Graphics pipeline with the codecs we can decode in software. No AVC: there is no
            // H.264 decoder in this build, so rdpgfx advertises AVC_DISABLED.
@@ -175,6 +179,7 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
     session->deviceScaleFactor = config->deviceScaleFactor ? config->deviceScaleFactor : 100;
     pthread_mutex_init(&session->inputLock, NULL);
     pthread_mutex_init(&session->displayLock, NULL);
+    pthread_mutex_init(&session->clipboardLock, NULL);
     region16_init(&session->dirty);
 
     RDP_CLIENT_ENTRY_POINTS entry = { 0 };
@@ -286,6 +291,7 @@ void sprung_session_destroy(SprungSession *session) {
     region16_uninit(&session->dirty);
     free(session->rectScratch);
     pthread_mutex_destroy(&session->displayLock);
+    pthread_mutex_destroy(&session->clipboardLock);
     pthread_mutex_destroy(&session->inputLock);
     free(session);
 }

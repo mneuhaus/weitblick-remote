@@ -19,6 +19,8 @@ public final class RDPSession {
     /// Current remote desktop size in pixels.
     public private(set) var desktopSize: PixelSize
     public let configuration: SessionConfiguration
+    /// The clipboard channel (inactive unless `configuration.clipboard`).
+    public let clipboard: RemoteClipboard
 
     private let native: SessionHandle
     private var isClosed = false
@@ -31,7 +33,8 @@ public final class RDPSession {
         configuration: SessionConfiguration,
         certificatePolicy: @escaping @Sendable (ServerCertificate) -> Bool = RDPSession.acceptAndLog
     ) {
-        let relay = EventRelay(certificatePolicy: certificatePolicy)
+        let clipboard = RemoteClipboard()
+        let relay = EventRelay(clipboard: clipboard, certificatePolicy: certificatePolicy)
         var callbacks = relay.makeCallbacks()
         let values: [String] = [configuration.host, configuration.username, configuration.domain,
                                 configuration.password, configuration.stateDirectory.path]
@@ -52,16 +55,20 @@ public final class RDPSession {
         config.keyboardLayout = configuration.keyboardLayout
         config.ignoreCertificate = configuration.ignoreCertificate
         config.audioPlayback = configuration.audioPlayback
+        config.clipboard = configuration.clipboard
         config.stateDirectory = UnsafePointer(strings[4])
 
         guard let raw = sprung_session_create(&config, &callbacks) else { return nil }
         self.native = SessionHandle(raw: raw, relay: relay)
         self.configuration = configuration
+        self.clipboard = clipboard
+        clipboard.attach(raw)
         self.desktopSize = configuration.desktopSize
         relay.session = self
     }
 
     deinit {
+        clipboard.detach()
         native.destroyInBackground()
     }
 
@@ -79,6 +86,7 @@ public final class RDPSession {
     /// other call is a no-op afterwards.
     public func close() {
         isClosed = true
+        clipboard.detach()
         native.destroyInBackground()
     }
 
