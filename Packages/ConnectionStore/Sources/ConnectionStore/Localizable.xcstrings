@@ -1,0 +1,326 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ copy" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Kopie"
+          }
+        }
+      }
+    },
+    "Audio: Jump’s code 2 read as “play on this Mac”; please check." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio: Jumps Code 2 als „auf diesem Mac abspielen“ gedeutet; bitte prüfen."
+          }
+        }
+      }
+    },
+    "Automatic layout detection takes precedence." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatische Layout-Erkennung hat Vorrang."
+          }
+        }
+      }
+    },
+    "Drive “%@” is read-only in Jump and is not shared (sharing needs write access)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laufwerk „%@“ ist in Jump schreibgeschützt und wird nicht freigegeben (Freigaben gehen nur mit Schreibzugriff)."
+          }
+        }
+      }
+    },
+    "Duplicate UniqueId in the Jump folder; this file was not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doppelte UniqueId im Jump-Ordner; diese Datei wurde nicht übernommen."
+          }
+        }
+      }
+    },
+    "Field %@ appears twice; the last value applies." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld %@ doppelt; der letzte Wert gilt."
+          }
+        }
+      }
+    },
+    "File unreadable or invalid; nothing planned." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei nicht lesbar oder ungültig; nichts geplant."
+          }
+        }
+      }
+    },
+    "Gateway reference saved; the gateway settings themselves are not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gateway-Verweis gespeichert, die Gateway-Einstellungen selbst werden nicht übernommen."
+          }
+        }
+      }
+    },
+    "Host missing; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host fehlt; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Line %lld unreadable; ignored." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeile %lld unlesbar; ignoriert."
+          }
+        }
+      }
+    },
+    "Name or path missing; drive not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name oder Pfad fehlt; Laufwerk nicht übernommen."
+          }
+        }
+      }
+    },
+    "No equivalent; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Entsprechung; nicht übernommen."
+          }
+        }
+      }
+    },
+    "No valid keyboard layout (KeyboardLocaleId); it is detected automatically." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein gültiges Tastaturlayout (KeyboardLocaleId); es wird automatisch erkannt."
+          }
+        }
+      }
+    },
+    "Not a list of texts; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Textliste; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not a list; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Liste; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not a number; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zahl; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not a readable Jump file (no JSON object or larger than 4 MiB)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine lesbare Jump-Datei (kein JSON-Objekt oder größer als 4 MiB)."
+          }
+        }
+      }
+    },
+    "Not a yes/no value; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Ja/Nein-Wert; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not an integer; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine ganze Zahl; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not an object; drive not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Objekt; Laufwerk nicht übernommen."
+          }
+        }
+      }
+    },
+    "Not text; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Text; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Reference to a Jump keyboard profile; the connection’s own keyboard rules apply." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verweis auf ein Jump-Tastaturprofil; es gelten die eigenen Tastaturregeln."
+          }
+        }
+      }
+    },
+    "Saved password in the file ignored; you’ll be asked for it when connecting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeichertes Passwort in der Datei ignoriert; beim Verbinden wird danach gefragt."
+          }
+        }
+      }
+    },
+    "Setting not supported; not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellung wird nicht unterstützt; nicht übernommen."
+          }
+        }
+      }
+    },
+    "Several saved connections belong to this Jump connection; clean them up first. Not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere gespeicherte Verbindungen gehören zu dieser Jump-Verbindung; bitte zuerst bereinigen. Nicht übernommen."
+          }
+        }
+      }
+    },
+    "The file’s drive selection (Windows drives) is not imported as Mac folders; share folders yourself." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laufwerksauswahl der Datei (Windows-Laufwerke) nicht als Mac-Ordner übernommen; Ordner bitte selbst freigeben."
+          }
+        }
+      }
+    },
+    "The password isn’t in the Jump file; you’ll be asked for it on the first connection (Jump’s keychain stays untouched)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwort steht nicht in der Jump-Datei; beim ersten Verbinden wird danach gefragt (Jumps Schlüsselbund bleibt unberührt)."
+          }
+        }
+      }
+    },
+    "Undocumented Jump code; not interpreted, the default stays." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undokumentierter Jump-Code; nicht gedeutet, der Standard bleibt."
+          }
+        }
+      }
+    },
+    "UniqueId missing; without it a later import couldn’t be matched. Not imported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UniqueId fehlt; ohne sie ließe sich ein erneuter Import nicht zuordnen. Nicht übernommen."
+          }
+        }
+      }
+    },
+    "Unknown audio code %lld; audio playback turned off to be safe." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekannter Audio-Code %lld; Audio-Wiedergabe vorsichtshalber aus."
+          }
+        }
+      }
+    },
+    "Unknown Jump value; playback off." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekannter Jump-Wert; Wiedergabe aus."
+          }
+        }
+      }
+    },
+    "Unknown protocol (ProtocolTypeCode); not imported rather than guessed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Protokoll (ProtocolTypeCode); nicht übernommen statt zu raten."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

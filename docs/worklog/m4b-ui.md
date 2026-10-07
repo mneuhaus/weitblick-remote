@@ -1,11 +1,13 @@
-# M4b App-UI (Fenster/Tabs, Verbindungsliste, Editor, Jump-Migration, Anmeldung, TOFU) – Worklog
+Working name until 2026-10-07: Sprung
+
+# M4b App UI (windows/tabs, connection list, editor, Jump migration, sign-in, TOFU) – Worklog
 
 Agent: M4b. Owns `Sources/Sprung/**` and `Packages/ConnectionStore`. M5 owns SprungBridge/SprungKit/SprungE2E/e2e.sh.
 No commits. Test VM only (10.211.55.9) or dummy 10.211.55.250 for failures. Never connect imported customer hosts.
 Builds via `scripts/build.sh`; app tests via `lockf -t 1800 /tmp/sprung-build.lock xcodebuild … test`.
 VM logons under `lockf -t 3600 /tmp/sprung-testvm.lock`.
 
-## Stand
+## Status
 
 - [x] 0 Plan + worklog
 - [x] 1 project.yml: ConnectionStore package, `Sources/Sprung/Support/Info.plist` (.rdp document type, merged
@@ -20,7 +22,7 @@ VM logons under `lockf -t 3600 /tmp/sprung-testvm.lock`.
 - [x] 8 Visual checks (screenshots), VM runs A+B, real import dry run into build/, .rdp open from Finder
 - [x] 9 e2e.sh once (3 runs x 36 checks green, M5's extended suite, evidence `build/evidence/m5-e2e-20261007-144047`)
 - [x] 10 Rename prep (coordinator: app becomes "Weitblick Remote"): no user-visible app name in texts except via
-  `App/AppInfo.name` (CFBundleDisplayName; menus "Über …/… ausblenden/… beenden", quit alert); Application Support
+  `App/AppInfo.name` (CFBundleDisplayName; menus "About …/Hide …/Quit …", quit alert); Application Support
   folder = `ConnectionStore.applicationSupportFolderName` (store file + FreeRDP state dir via the mapping);
   Keychain service = `KeychainCredentialStore.defaultService`. Modules/targets/bundle id untouched.
 
@@ -31,11 +33,11 @@ ConnectionStore 32 green. Nothing open in M4b except the items under "Not verifi
 
 - Native window tabs: overview window and session windows share `tabbingIdentifier`
   `nrw.neuhaus.sprung.main`; sessions are added with `addTabbedWindow` to the overview's tab group (own windows
-  when the setting is on). Window menu: Übersicht ⌃⌥⌘1, sessions ⌃⌥⌘2…9 (by current tab order), previous/next
+  when the setting is on). Window menu: Overview ⌃⌥⌘1, sessions ⌃⌥⌘2…9 (by current tab order), previous/next
   ⌃⌥⌘←/→. The keyboard engine reserves `ctrl+opt+cmd+*` → passToApp → menu key equivalents fire.
 - `SessionWindowController` keeps window, view, tab status, key monitor and shortcut tap for its lifetime; each
   connection attempt is a `LiveSession` (RDPSession + SessionKeyboard + ClipboardSync + CertificateGate), so a
-  retry after sign-in or "Erneut verbinden" happens in the same tab.
+  retry after sign-in or "Reconnect" happens in the same tab.
 - Certificates (M5 API, 2026-10-07): `SessionConfiguration.trustedCertificateFingerprints` pass silently; others
   reach `RDPSessionDelegate.session(_:decideAbout:) async -> CertificateDecision` on main (FreeRDP thread waits,
   120 s timeout). The app shows the sheet and resumes the continuation; closing the window resumes it with
@@ -71,32 +73,32 @@ ConnectionStore 32 green. Nothing open in M4b except the items under "Not verifi
 ### 2026-10-07 – Live checks
 - Real Jump first-start dry run: `--store build/m4b/real-dryrun/connections.json`, real Jump folder. Preview: 12 new
   (11 RDP + 1 VNC); `--debug-import-confirm` applied it; report 12 created. Re-import of the same store: 12
-  unchanged, nothing preselected, button "Alles aktuell". Jump files: SHA-256 and mtimes identical before/after
+  unchanged, nothing preselected, button "All Up to Date". Jump files: SHA-256 and mtimes identical before/after
   (`build/m4b/real-dryrun/jump-{before,after}.txt`). `~/Library/Application Support/Sprung/connections.json` was
   NOT created (only the old `FreeRDP/` folder is there). Shots: `build/m4b/shots/real-import-{preview,report}-*.png`,
   `real-reimport-*.png`, `real-overview-*.png` (contain customer host names: local only, build/ is ignored).
 - VM run A (VM lock held; store `build/m4b/vm/connections.json`, Test-VM clipboard OFF so the general pasteboard
-  stays untouched, passwords in memory only): tabs Übersicht | Nicht erreichbar | Test-VM with status marks.
+  stays untouched, passwords in memory only): tabs Overview | Nicht erreichbar (unreachable dummy) | Test-VM with status marks.
   First Test-VM attempt failed with ERRCONNECT_CONNECT_FAILED (≈20 s after an M5 e2e run had used the VM; the
-  RDP listener was briefly not accepting) → overlay "Getrennt / Host nicht erreichbar" + "Erneut verbinden".
+  RDP listener was briefly not accepting) → overlay "Disconnected / Host unreachable." + "Reconnect".
   "Nicht erreichbar" (no password) → sign-in sheet. Around 30 s someone clicked into the visible test window
-  ("Erneut verbinden", then "Immer vertrauen" in the real certificate sheet): the app became active only then
+  ("Reconnect", then "Always Trust" in the real certificate sheet): the app became active only then
   (my hooks never activate it, see below), the session connected, the VM's SHA-256 fingerprint landed in the store
-  and lastConnected was set. So retry-in-tab and TOFU "Immer vertrauen" were exercised by a real click.
+  and lastConnected was set. So retry-in-tab and TOFU "Always Trust" were exercised by a real click.
 - VM run B: saved password deliberately wrong → server rejects → sign-in sheet in the tab with
-  "Anmeldung fehlgeschlagen: Benutzername oder Passwort falsch." → `--debug-signin` submits the right one (save on)
+  "Sign-in failed: wrong user name or password." → `--debug-signin` submits the right one (save on)
   → connected in the same tab. No certificate sheet: the fingerprint trusted in run A is passed to SprungKit.
 - Focus: frontmost app checked every 1–3 s with `lsappinfo` during run B, tab switching (`--debug-select-tab`),
   sheets and Finder-open: never Sprung. AppKit logs "ordered front from a non-active application and may order
   beneath the active application's windows".
 - `.rdp` via LaunchServices (`open -g -a build/Sprung.app Werkbank.rdp --args --store …`): imported, selected,
   German note about the ignored stored password, nothing connected.
-- Fixes from looking: relative date "in 0 Sekunden" → "gerade eben"; sheets' SwiftUI closures captured the sheet
+- Fixes from looking: relative date "in 0 Sekunden" (in 0 seconds) → "gerade eben" (just now); sheets' SwiftUI closures captured the sheet
   window strongly (retain cycle per sheet) → `weak var sheet`.
 
 ### 2026-10-07 – Final
 - Review fix: Delete/Return in the list acted on the raw selection, including rows hidden by the search; now only
-  visible selected rows. Import report wording for keyboard profiles. Rename prep (see Stand 10).
+  visible selected rows. Import report wording for keyboard profiles. Rename prep (see Status 10).
 - M5 fixed WakeOnLANTests (`Darwin.bind`); the shared test command works again (no temp spec needed).
 - SprungKit's own default `SessionConfiguration.stateDirectory` still names "Sprung/FreeRDP" (M5 file, used by
   smoke/e2e); the app overrides it from `ConnectionStore.applicationSupportDirectory`.
@@ -120,7 +122,8 @@ Fixed (with regression tests):
    could revert a concurrent edit. New `ConnectionStore.modify(id:_:)` runs inside the actor.
 5. UI-facing report texts were English (German app): importer warnings/reasons, `.rdp` warnings and
    `ImportReport.humanReadable` are German now; `JumpImporter.passwordNotice` is a constant so the UI can show it
-   once. `duplicate` default name "Kopie".
+   once. `duplicate` default name "Kopie" (copy). (R3, later the same day: English UI with these texts as the
+   German translation; `humanReadable` is English again, it only feeds the dry-run evidence file.)
 6. Search logic only on the actor: `ConnectionStore.filter(_:matching:sortedBy:)` is the same logic, synchronous,
    for the list UI (`search` uses it).
 
@@ -145,28 +148,28 @@ Open (not changed):
 
 ## Spec proposals
 
-- Fenster und Tabs: "Die Übersicht lässt sich schließen, wenn keine Sitzung läuft; Sprung bleibt dann aktiv
-  (Dock-Symbol oder ⌃⌥⌘1 holt sie zurück)." (SPEC says ⌘W must not quit; this is how it is implemented.)
-- Migration: "Jumps Tastaturprofile werden im Importbericht zusammengefasst. Marcs „Windows“-Profil entspricht
-  Sprungs Standardregeln; die 4 eigenen Zuordnungen des „Mac“-Profils (Jumps Modus ohne Kurzbefehl-Übersetzung,
-  ⌥⇥ → Win+⇥ u. a.) haben in „Windows 1:1“ keine Regel-Entsprechung und werden nicht übernommen." (SPEC says custom
+- Windows and tabs: "The overview can be closed while no session runs; Sprung then stays running
+  (the Dock icon or ⌃⌥⌘1 brings it back)." (SPEC says ⌘W must not quit; this is how it is implemented.)
+- Migration: "Jump's keyboard profiles are summarized in the import report. Marc's "Windows" profile matches
+  Sprung's default rules; the 4 custom mappings of the "Mac" profile (Jump's mode without shortcut translation,
+  ⌥⇥ → Win+⇥ and others) have no rule equivalent in "Windows 1:1" and are not imported." (SPEC says custom
   mappings are imported as rules; none of Marc's RDP-relevant ones are custom.)
-- Laufwerke: "In Jump schreibgeschützte Freigaben gibt Sprung nicht frei (FreeRDP kann nur mit Schreibzugriff)."
-- Zertifikate: "Bei geändertem Zertifikat ersetzt „Neuem Zertifikat vertrauen“ die bisher vertrauten Fingerabdrücke."
+- Drives: "Shares that are read-only in Jump are not shared by Sprung (FreeRDP can only share with write access)."
+- Certificates: "For a changed certificate, "Trust New Certificate" replaces the fingerprints trusted so far."
 
 ## Not verified live (Marc should try)
 
 - Real key input in a session tab (no OS events allowed here): ⌃⌥⌘←/→ and ⌃⌥⌘1–9 switch tabs from inside a
-  connected session (engine reserves `ctrl+opt+cmd+*` → passToApp → Fenster-menu key equivalents); keys are
+  connected session (engine reserves `ctrl+opt+cmd+*` → passToApp → Window menu key equivalents); keys are
   released on tab switch (`windowDidResignKey` → `focusLost` + `releaseAllKeys`, M3 code path, unchanged).
 - Return / double-click / Delete in the list, context menu, ⌘N, search field typing (UI driven only by hooks here).
-- Closing a connected tab: confirmation sheet with "Nicht mehr fragen"; re-enable in Einstellungen.
+- Closing a connected tab: confirmation sheet with "Don’t ask again"; re-enable in Settings.
 - Fullscreen (session tab group, start-in-fullscreen): not tried (would switch Spaces).
 - Keychain: saving a password from the sign-in sheet into the real login keychain (tests used the in-memory store;
   the package's real-Keychain round trip is unit-tested with a throwaway service).
-- "Sitzungen in eigenen Fenstern öffnen" (setting) and dragging tabs out/merging windows.
-- First start with the real data: quit Sprung, start it, the Jump preview appears (12 connections), "12 Verbindungen
-  übernehmen", then connect to one PC: sign-in sheet → certificate sheet ("Immer vertrauen").
+- "Open sessions in separate windows" (setting) and dragging tabs out/merging windows.
+- First start with the real data: quit Sprung, start it, the Jump preview appears (12 connections), "Import 12
+  Connections", then connect to one PC: sign-in sheet → certificate sheet ("Always Trust").
 
 ## Risks / open
 

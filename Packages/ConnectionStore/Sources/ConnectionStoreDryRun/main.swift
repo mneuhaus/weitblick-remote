@@ -22,7 +22,7 @@ struct ConnectionStoreDryRun {
         let reportURL = URL(fileURLWithPath: args[1])
         // The CLI is an evidence runner, not an import command. Keep all possible output under build/.
         let buildPath = storeURL.deletingLastPathComponent().path
-        guard buildPath.hasSuffix("/sprung/build"), reportURL.path.hasPrefix(buildPath + "/") else {
+        guard buildPath.hasSuffix("/weitblick-remote/build"), reportURL.path.hasPrefix(buildPath + "/") else {
             throw CocoaError(.fileWriteNoPermission)
         }
         let store = ConnectionStore(fileURL: storeURL)

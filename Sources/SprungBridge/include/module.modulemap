@@ -1,4 +1,0 @@
-module SprungBridge {
-    header "SprungBridge.h"
-    export *
-}

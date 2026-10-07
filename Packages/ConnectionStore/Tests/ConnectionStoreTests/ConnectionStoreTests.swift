@@ -73,7 +73,7 @@ struct ConnectionStoreTests {
         #expect(await store.search("pc0002").map(\.id) == [beta.id])
         #expect(ConnectionStore.filter(await store.connections, matching: "alpha", sortedBy: .name).map(\.id) == [alpha.id])
         let duplicate = try await store.duplicate(id: beta.id)
-        #expect(duplicate.name == "Beta Kopie")
+        #expect(duplicate.name == "Beta copy")
         #expect(duplicate.id != beta.id)
         #expect(duplicate.importSource == nil)
         #expect(duplicate.lastConnected == nil)

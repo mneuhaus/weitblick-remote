@@ -102,7 +102,7 @@ done
 
 COMMIT=$(git -C "$SRC" rev-parse HEAD)
 STAMP_VALUE=$( (echo "$COMMIT"; printf '%s\n' "${FLAGS[@]}"; cat "$0") | shasum -a 256 | cut -d' ' -f1)
-STAMP="$PREFIX/.sprung-build-stamp"
+STAMP="$PREFIX/.weitblick-build-stamp"
 
 if [[ "${1:-}" != "--force" && -f "$STAMP" && "$(cat "$STAMP")" == "$STAMP_VALUE" ]]; then
   echo "FreeRDP up to date ($PREFIX)"

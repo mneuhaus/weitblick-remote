@@ -1,9 +1,11 @@
+Working name until 2026-10-07: Sprung
+
 # M3 Integration (Tastatur + Zwischenablage) – Worklog
 
 Agent: M3. Owns everything except `Packages/ConnectionStore` (parallel M4a agent). No commits.
 Test VM only (10.211.55.9). Tests use a private named pasteboard, never `.general`.
 
-## Stand
+## Status
 
 - [x] A1 Engine: ⌘Q → Alt+F4 (not reserved), ⌘[ / ⌘] → Alt+← / Alt+→ (M2 added the rules; M3 made
   the bracket rules character-based on the orchestrator's decision). New public `engine.tap(WindowsChord)`
@@ -60,10 +62,11 @@ Next step for a fresh agent: nothing open in M3 except the live checks under "No
   run loop on purpose: if the app hangs, macOS times the tap out (kCGEventTapDisabledByTimeout) instead
   of a background thread swallowing keys system-wide. Reserved shortcuts pass through to the app.
   No permission → `tapCreate` is not even tried, no prompt; the session menu shows one item
-  "Systemkürzel brauchen Bedienungshilfen-Recht – Einstellungen öffnen…" (hidden when trusted or "Nie").
-- Session menu (no key equivalents): Strg+Alt+Entf, Windows-Taste, Alt+Tab, Druck (engine.tap),
-  Tastatur Mac-Kurzbefehle / Windows 1:1, ⌥-Taste (4 strategies), Zwischenablage abgleichen (toggle),
-  Systemkürzel an Windows (Im Vollbild / Immer / Nie, app-wide UserDefaults `systemShortcutCapture`).
+  "Allow Accessibility Access for System Shortcuts…" (hidden when trusted or "Never").
+- Session menu (no key equivalents): Send Ctrl+Alt+Del, Windows Key, Alt+Tab, Print Screen (engine.tap),
+  Keyboard: Mac Shortcuts / Windows 1:1, ⌥ Key (4 strategies), Sync Clipboard (toggle),
+  System Shortcuts to Windows (In Full Screen / Always / Never, app-wide UserDefaults `systemShortcutCapture`).
+  (Menu names as in the English UI since R3; the German translation keeps the original German names.)
   Mode/strategy apply via `engine.apply` (releases keys first) for this session only.
 
 ### Several sessions / window tabs (M4b)
@@ -200,7 +203,7 @@ publish twice (harmless, lazy data). Session start sends no server format list.
 
 ## Spec proposals
 
-- Tastatur: "⌘[ / ⌘] nach getipptem Zeichen (wie Jump): US ⌘[, Deutsch ⌘⌥5 / ⌘⌥6; ⌘Ü und ⌘+ bleiben
-  Strg+Ü / Strg++ (Zoom)."
-- Zwischenablage: "Bietet Windows Text und Bild gleichzeitig an (Office), gewinnt der Text." and
-  "Dateisymbole aus Finder-Kopien werden nicht als Bild übertragen."
+- Keyboard: "⌘[ / ⌘] by typed character (as in Jump): US ⌘[, German ⌘⌥5 / ⌘⌥6; ⌘Ü and ⌘+ stay
+  Ctrl+Ü / Ctrl++ (zoom)."
+- Clipboard: "If Windows offers text and an image at the same time (Office), the text wins." and
+  "File icons from Finder copies are not transferred as an image."

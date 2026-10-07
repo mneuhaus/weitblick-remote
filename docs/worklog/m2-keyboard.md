@@ -1,7 +1,9 @@
+Working name until 2026-10-07: Sprung
+
 # M2 KeyboardEngine: Worklog
 
 Owner: M2 agent. Scope: only `Packages/KeyboardEngine`. No git commits (orchestrator commits).
-Source of truth: `docs/SPEC.md`, section "Tastatur".
+Source of truth: `docs/SPEC.md`, section "Keyboard".
 
 ## Current state (2026-10-07)
 
@@ -125,34 +127,34 @@ M3 pitfalls to watch:
 
 ## Proposed SPEC changes (not applied; SPEC is read-only for M2)
 
-- Tastatur/Physische Zuordnung: add "F15 -> Pause über FreeRDPs Pause-Sequenz (wie mstsc), mit Strg ->
-  Untbr", "Ziffernblock-= als Unicode", JIS keys as above, "Kontextmenü-Taste -> Apps".
-- Mac-Kurzbefehle: "⌘ allein antippen" = kürzer als 0,5 s und ohne andere Taste; ⌥ allein antippen = Alt.
-  Regeln gelten vor der ⌥-Strategie. Regel-JSON-Format (above).
-- Option-Taste Smart: precise definition above (letter keys curated set, other keys any printable,
-  ⌥Leertaste = Leertaste, Ziffernblock = Alt).
-- Lokal bleiben: also in "Windows 1:1".
+- Keyboard/Physical mapping: add "F15 -> Pause through FreeRDP's pause sequence (like mstsc), with Ctrl ->
+  Break", "keypad = as Unicode", JIS keys as above, "context menu key -> Apps".
+- Mac shortcuts: "tapping ⌘ alone" = shorter than 0.5 s and without another key; tapping ⌥ alone = Alt.
+  Rules apply before the ⌥ strategy. Rule JSON format (above).
+- Option key Smart: precise definition above (letter keys curated set, other keys any printable,
+  ⌥Space = Space, keypad = Alt).
+- Stay local: also in "Windows 1:1".
 
 ## Open questions for Marc
 
 - Smart ⌥ on letter keys: å ø æ œ ç count as "not useful", so ⌥A = Alt+A. Polish Pro users (ą ę on ⌥)
-  would need "Immer Zeichen" or Jump-Stil. OK?
+  would need "Always characters" or Jump style. OK?
 - Lone ⌥ tap -> Alt tap (menu bar / ribbon key tips): wanted, or rather nothing?
 - Tap timeout 0.5 s for ⌘ -> Win: Jump has none, I think; keep?
 
-## Entscheidungen Orchestrator (2026-10-07)
-- Smart: ⌥A/⌥O usw. → Alt+Buchstabe bleibt so (å/ø braucht Marc nicht; wer es braucht, nimmt "Immer Zeichen" oder Jump-Stil).
-- ⌥ allein antippen → Alt-Tipp bleibt (Windows-Standardverhalten für Menüleiste/Ribbon).
-- 0,5 s Grenze für ⌘ → Win-Tipp bleibt.
+## Orchestrator decisions (2026-10-07)
+- Smart: ⌥A/⌥O etc. → Alt+letter stays (Marc does not need å/ø; whoever does picks "Always characters" or Jump style).
+- Tapping ⌥ alone → an Alt tap stays (Windows' standard behaviour for the menu bar/ribbon).
+- The 0.5 s limit for ⌘ → Win tap stays.
 
 (Restored after my worklog rewrite accidentally dropped this block; all three decisions keep the
 behaviour that was already implemented, so no code change followed.)
 
-## Spec update 2026-10-07 (Jump-Profil) — implemented
+## Spec update 2026-10-07 (Jump profile) — implemented
 
 SPEC gained three rules from Jump's default input profile plus a change to the local shortcuts:
 
-- `⌘Q → Alt+F4` ("wie Jump; Sprung beenden über Menü bzw. ⌘Q außerhalb einer Sitzung"), so **⌘Q is no
+- `⌘Q → Alt+F4` ("as in Jump; quit Sprung through the menu or ⌘Q outside a session"), so **⌘Q is no
   longer a reserved shortcut**: `defaultReservedShortcuts` is now only `ctrl+cmd+f`,
   `ctrl+opt+cmd+*`, `ctrl+opt+shift+cmd+*`. M3/M4 must quit Sprung from the menu and only let ⌘Q
   through to the app while no session view has focus — the engine always translates it now.
@@ -161,7 +163,7 @@ SPEC gained three rules from Jump's default input profile plus a change to the l
   macOS itself resolves key equivalents the current layout cannot type, and it is what Jump does.
   **Superseded in M3** (orchestrator decision, ⌘+ must stay zoom): the rules now match by typed
   character (`typedCharacter`), ⌘⌥5 / ⌘⌥6 on German; see `m3-integration.md`.
-- `⌃⌥⌫ → Strg+Alt+Entf` and `⌘⇧Z → Strg+Y` were already in the defaults.
+- `⌃⌥⌫ → Ctrl+Alt+Delete` and `⌘⇧Z → Ctrl+Y` were already in the defaults.
 - ⌘Q in "Windows 1:1" stays Win+Q (no rules in that mode), per spec.
 
 Tests added: `commandQClosesTheRemoteWindow`, `commandBracketsAreBrowserBackAndForward`,
@@ -172,7 +174,7 @@ tests now use ⌃⌘F and a custom `cmd+k` instead of ⌘Q.
 
 M3 integration (other agent). For M2: nothing open.
 
-## Entscheidungen Orchestrator (2026-10-07)
-- Smart: ⌥A/⌥O usw. → Alt+Buchstabe bleibt so (å/ø braucht Marc nicht; wer es braucht, nimmt "Immer Zeichen" oder Jump-Stil).
-- ⌥ allein antippen → Alt-Tipp bleibt (Windows-Standardverhalten für Menüleiste/Ribbon).
-- 0,5 s Grenze für ⌘ → Win-Tipp bleibt.
+## Orchestrator decisions (2026-10-07)
+- Smart: ⌥A/⌥O etc. → Alt+letter stays (Marc does not need å/ø; whoever does picks "Always characters" or Jump style).
+- Tapping ⌥ alone → an Alt tap stays (Windows' standard behaviour for the menu bar/ribbon).
+- The 0.5 s limit for ⌘ → Win tap stays.

@@ -1,3 +1,5 @@
+Working name until 2026-10-07: Sprung
+
 # M5 Redirection, reconnect, callbacks – Worklog
 
 Agent: M5. Owns `Sources/SprungBridge/**`, `Sources/SprungKit/**`, `Sources/SprungE2E/**`, `scripts/e2e.sh`,
@@ -6,7 +8,7 @@ Agent: M5. Owns `Sources/SprungBridge/**`, `Sources/SprungKit/**`, `Sources/Spru
 After M4b finished (checkpoint c28388c) M5 also edited `Sources/Sprung/Model/SessionConfiguration+Connection.swift`
 (security options) and `Sources/Sprung/Overview/*` (Wake-on-LAN menu item).
 
-## Stand
+## Status
 
 - [x] 1 Certificate decision + disconnect reasons for the app (VM-verified, smoke end-reason checks)
 - [x] 2 Drive redirection (E2E: umlauts, create/rename/delete both ways, 100 MB both ways byte-exact)
@@ -133,7 +135,7 @@ Next step for a fresh agent: nothing open in M5; see "Not verified live" and "Ri
   security negotiated (`[RDP]`), desktop + resize (`smoke-rdp-security.png`, SMOKE OK). Not verified: TLS 1.0
   (the VM speaks TLS 1.2/1.3; changing Schannel would risk the VM's RDP).
 - Found on the way: reconnecting without NLA to a Windows session that was created by an NLA logon hung at
-  "Bitte warten" for > 90 s (session active on the server, no logon notification); a fresh logon and a session
+  "Bitte warten" (please wait) for > 90 s (session active on the server, no logon notification); a fresh logon and a session
   created without NLA work. Logged as risk, not a Sprung bug as far as visible.
 - `smoke.sh --no-nla` (for a VM that allows it); the smoke now waits up to 90 s for a non-black desktop
   (Windows logs on inside the session without NLA).
@@ -176,7 +178,7 @@ SprungKit API (all main actor unless noted):
   `.other`. `reason.needsCredentials` → ask for the password and connect again; `reason.isDeliberate` →
   close quietly (Jump closes the tab when the user logs off in Windows).
 - **Reconnect:** `SessionConfiguration.autoReconnect` (default true). Events `.reconnecting(attempt:)` (state
-  `.reconnecting`; release local keys, show "Wiederverbinden … (Versuch n)") and `.reconnected` (state
+  `.reconnecting`; release local keys, show "Reconnecting (attempt n)…") and `.reconnected` (state
   `.connected`; send `focusGained()`/sync if the window is key). Same `RDPSession`, framebuffer and
   `ClipboardSync`; no new objects needed. After 10 failed attempts `.disconnected` with `.connectionLost`.
   `disconnect()` stops a reconnect at once.
@@ -205,10 +207,10 @@ SprungKit API (all main actor unless noted):
   session and Finder is not implemented): the E2E reads the lazy `public.file-url` from a private
   pasteboard the way Finder does, but the general pasteboard and Finder were off-limits here. Same
   for copying files in Finder and pasting in Explorer.
-- Hearing audio on the Mac (E2E only proves wave PDUs reach the macOS backend) and that "Auf dem
-  entfernten PC" / "Aus" behave as expected on a real PC (E2E: no audio data reaches the Mac).
+- Hearing audio on the Mac (E2E only proves wave PDUs reach the macOS backend) and that "Leave on the
+  remote PC" / "Off" behave as expected on a real PC (E2E: no audio data reaches the Mac).
 - Microphone: never switched on in tests (it would show the macOS permission dialog). FreeRDP's audin asks
-  for microphone access when the channel loads, i.e. at connect time of a connection with "Mikrofon" on.
+  for microphone access when the channel loads, i.e. at connect time of a connection with "Microphone" on.
 - Printing a page (never done: the printers are Marc's real ones). On the VM the printers reach Windows but
   are not installed (driver "Microsoft Print to PDF" missing on this ARM VM, event 1111).
 - Reconnect after the Mac slept, after a Wi-Fi change and with a VPN; E2E only unplugs the VM's adapter.
@@ -230,7 +232,7 @@ SprungKit API (all main actor unless noted):
   reproduced. Mac → Windows 35–60 MB/s.
 - Reconnect notices a dead connection after ≈ 11 s (FreeRDP's TCP keepalive 5 s + 3 × 2 s); 10 attempts with
   1, 2, 4, 8, 15… s waits plus up to 15 s connect timeout each, so it gives up after roughly 3–4 minutes.
-- Without NLA, reconnecting to a Windows session that an NLA logon created hung at "Bitte warten" (> 90 s)
+- Without NLA, reconnecting to a Windows session that an NLA logon created hung at "Bitte warten" (please wait, > 90 s)
   on the VM; fresh logons without NLA and sessions created without NLA work.
 - TLS 1.0 and OpenSSL security level 0 are allowed for every connection (needed by old Windows); the client
   still negotiates the best version and pins certificates. Standard RDP security (last fallback) has no server
@@ -244,15 +246,15 @@ SprungKit API (all main actor unless noted):
 
 ## Spec proposals
 
-- Zwischenablage: „Dateien (auch Ordner, rekursiv) in beide Richtungen; Grenze 2 GB je Kopiervorgang
-  (getrennt von den 128 MB für andere Formate). Von Windows eingefügte Dateien werden beim Einfügen in den
-  Finder geladen.“
-- Sicherheit: „NLA aus = Kompatibilitätsmodus für alte Ziele: TLS (ab 1.0), sonst RDP-Sicherheit; Windows
-  fragt dann selbst nach dem Passwort. TLS 1.0 ist für alle Verbindungen erlaubt.“
-- Audio: „Wiedergabe lokal / auf dem entfernten PC / aus; Mikrofon standardmäßig aus.“
-- Drucker (M6): Druckertreiber pro Verbindung wählbar (z. B. „MS Publisher Imagesetter“ für Windows 7), weil
-  Windows ohne „Microsoft Print to PDF“ die Mac-Drucker ablehnt.
-- Laufwerke: „schreibgeschützt“ aus Jump wird nicht unterstützt (FreeRDP kann es nicht); solche Freigaben
-  entfallen und stehen im Importbericht.
-- Wiederverbinden: „automatisch nach Netzabbruch, bis zu 10 Versuche (≈ 3–4 min), danach Fehlermeldung mit
-  ‚Erneut verbinden‘.“
+- Clipboard: "Files (also folders, recursively) in both directions; limit 2 GB per copy
+  (separate from the 128 MB for other formats). Files pasted from Windows are loaded when they are pasted into the
+  Finder."
+- Security: "NLA off = compatibility mode for old targets: TLS (1.0 and later), otherwise RDP security; Windows
+  then asks for the password itself. TLS 1.0 is allowed for every connection."
+- Audio: "Playback local / on the remote PC / off; microphone off by default."
+- Printers (M6): printer driver selectable per connection (e.g. "MS Publisher Imagesetter" for Windows 7), because
+  Windows without "Microsoft Print to PDF" refuses the Mac printers.
+- Drives: "read-only" from Jump is not supported (FreeRDP cannot do it); such shares
+  are dropped and listed in the import report.
+- Reconnect: "automatically after a network drop, up to 10 attempts (≈ 3–4 min), then an error message with
+  'Reconnect'."

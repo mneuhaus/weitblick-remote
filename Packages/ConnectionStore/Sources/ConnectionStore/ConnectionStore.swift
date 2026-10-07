@@ -25,7 +25,7 @@ public enum ConnectionSortOrder: Sendable { case name, recent }
 public actor ConnectionStore {
     public typealias Migration = @Sendable (_ oldData: Data, _ oldSchemaVersion: Int) throws -> Data
     /// The app's folder in Application Support (the one place that names it).
-    public static let applicationSupportFolderName = "Sprung"
+    public static let applicationSupportFolderName = "Weitblick Remote"
     public static var applicationSupportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/\(applicationSupportFolderName)", isDirectory: true)
@@ -142,7 +142,7 @@ public actor ConnectionStore {
         try ensureLoaded()
         guard var copy = connections.first(where: { $0.id == id }) else { throw ConnectionStoreError.missingConnection(id) }
         copy.id = UUID()
-        copy.name = name ?? "\(copy.name) Kopie"
+        copy.name = name ?? String(localized: "\(copy.name) copy", bundle: .module)
         copy.lastConnected = nil
         copy.importSource = nil
         try insert(copy)

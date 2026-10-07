@@ -10,22 +10,22 @@ CONFIGURATION="${1:-Debug}"
 cd "$ROOT"
 
 # Parallel agents share this checkout: one build at a time.
-if [[ -z "${SPRUNG_BUILD_LOCKED:-}" ]]; then
-  export SPRUNG_BUILD_LOCKED=1
-  exec lockf -t 1800 /tmp/sprung-build.lock "$0" "$@"
+if [[ -z "${WEITBLICK_BUILD_LOCKED:-}" ]]; then
+  export WEITBLICK_BUILD_LOCKED=1
+  exec lockf -t 1800 /tmp/weitblick-build.lock "$0" "$@"
 fi
 
 "$ROOT/scripts/build-freerdp.sh"
 xcodegen generate --quiet
 
-for scheme in Sprung sprung-smoke sprung-e2e; do
-  xcodebuild -project Sprung.xcodeproj -scheme "$scheme" -configuration "$CONFIGURATION" \
+for scheme in WeitblickRemote weitblick-smoke weitblick-e2e; do
+  xcodebuild -project WeitblickRemote.xcodeproj -scheme "$scheme" -configuration "$CONFIGURATION" \
     -derivedDataPath build/DerivedData -quiet build
 done
 
 PRODUCTS="build/DerivedData/Build/Products/$CONFIGURATION"
-rm -rf build/Sprung.app
-cp -R "$PRODUCTS/Sprung.app" build/Sprung.app
-cp "$PRODUCTS/sprung-smoke" build/sprung-smoke
-cp "$PRODUCTS/sprung-e2e" build/sprung-e2e
-echo "built build/Sprung.app, build/sprung-smoke and build/sprung-e2e ($CONFIGURATION)"
+rm -rf "build/Weitblick Remote.app"
+cp -R "$PRODUCTS/Weitblick Remote.app" "build/Weitblick Remote.app"
+cp "$PRODUCTS/weitblick-smoke" build/weitblick-smoke
+cp "$PRODUCTS/weitblick-e2e" build/weitblick-e2e
+echo "built build/Weitblick Remote.app, build/weitblick-smoke and build/weitblick-e2e ($CONFIGURATION)"

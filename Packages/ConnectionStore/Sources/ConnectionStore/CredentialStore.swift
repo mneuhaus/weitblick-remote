@@ -14,7 +14,7 @@ public struct CredentialStoreError: Error, Equatable, Sendable {
 }
 
 public struct KeychainCredentialStore: CredentialStore {
-    public static let defaultService = "nrw.neuhaus.sprung"
+    public static let defaultService = "nrw.neuhaus.weitblick-remote"
     public let service: String
     public init(service: String = Self.defaultService) { self.service = service }
 

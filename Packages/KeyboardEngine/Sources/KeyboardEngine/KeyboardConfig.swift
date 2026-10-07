@@ -54,7 +54,7 @@ public struct KeyboardConfig: Hashable, Sendable {
     }
 
     /// ⌃⌘F (full screen) and everything with ⌃⌥⌘ (app shortcuts). ⌘Q is NOT reserved: in a session it
-    /// is Alt+F4 (`ShortcutRule.defaults`); quitting Sprung runs through the menu.
+    /// is Alt+F4 (`ShortcutRule.defaults`); quitting Weitblick Remote runs through the menu.
     public static let defaultReservedShortcuts: [MacChord] = [
         "ctrl+cmd+f", "ctrl+opt+cmd+*", "ctrl+opt+shift+cmd+*",
     ].map { try! MacChord($0) }

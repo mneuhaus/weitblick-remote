@@ -29,7 +29,7 @@ public struct JumpInputProfile: Codable, Sendable, Identifiable {
     public var mappingsDisabled: Bool
     public var shortcutsDisabled: Bool
     public var modifierForUnmodifiedKeys: Int
-    /// Jump shortcut IDs are undocumented. Preserve their states in the report, not as Sprung rules.
+    /// Jump shortcut IDs are undocumented. Preserve their states in the report, not as Weitblick Remote rules.
     public var shortcuts: [String: Bool]
     public var mappings: [JumpKeyboardMapping]
     public var warnings: [String]

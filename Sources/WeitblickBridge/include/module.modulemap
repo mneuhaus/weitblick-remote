@@ -1,0 +1,4 @@
+module WeitblickBridge {
+    header "WeitblickBridge.h"
+    export *
+}

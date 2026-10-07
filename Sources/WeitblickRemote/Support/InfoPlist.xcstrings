@@ -1,0 +1,28 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leitet das Mikrofon an den entfernten Windows-PC weiter, wenn die Verbindung das erlaubt."
+          }
+        }
+      }
+    },
+    "Remote Desktop Connection" : {
+      "comment" : "Name of the .rdp document type (CFBundleTypeName, UTTypeDescription)",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remotedesktop-Verbindung"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

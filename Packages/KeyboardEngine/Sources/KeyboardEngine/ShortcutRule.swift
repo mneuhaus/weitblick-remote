@@ -6,7 +6,7 @@ public struct ShortcutRule: Hashable, Sendable {
     /// Chords sent in order. A single chord with a key is held as long as the Mac key is held
     /// (and repeats); longer sequences and modifier taps are sent as taps.
     public var windows: [WindowsChord]
-    /// The rule also matches with ⇧ added, and then adds Shift to every output chord (⌘⇧← -> ⇧Pos1).
+    /// The rule also matches with ⇧ added, and then adds Shift to every output chord (⌘⇧← -> ⇧Home).
     public var keepShift: Bool
     /// The output modifiers stay down until the rule's ⌘ (or ⌥) is released, and further keys pass
     /// through with them (⌘⇥⇥⇥ -> Alt held, Tab, Tab, Tab).
@@ -41,7 +41,7 @@ public struct ShortcutRule: Hashable, Sendable {
         )
     }
 
-    /// The defaults from the spec ("Sonderregeln").
+    /// The defaults from the spec ("Special rules").
     public static let defaults: [ShortcutRule] = [
         ShortcutRule("shift+cmd+z", ["ctrl+y"]),
         ShortcutRule("cmd+left", ["home"], keepShift: true),

@@ -21,16 +21,17 @@ public struct ImportReport: Codable, Hashable, Sendable {
     public var connections: [ConnectionImportReport]
     public init(connections: [ConnectionImportReport] = []) { self.connections = connections }
     public var warningCount: Int { connections.reduce(0) { $0 + $1.warnings.count } }
+    /// For the dry-run tool's evidence file (English, not localized).
     public var humanReadable: String {
-        var lines = ["Jump-Import (Jump-Dateien nur gelesen)",
-                     "Dateien: \(connections.count); Hinweise: \(warningCount)"]
+        var lines = ["Jump import (Jump files only read)",
+                     "Files: \(connections.count); notes: \(warningCount)"]
         for item in connections {
-            lines.append("\n\(item.fileName): \(item.connectionName ?? "nicht lesbar") [\(item.action?.rawValue ?? "übersprungen")]")
-            lines.append("  Übernommen: " + item.importedFields.sorted().joined(separator: ", "))
+            lines.append("\n\(item.fileName): \(item.connectionName ?? "unreadable") [\(item.action?.rawValue ?? "not imported")]")
+            lines.append("  Imported: " + item.importedFields.sorted().joined(separator: ", "))
             for field in item.ignoredFields.sorted(by: { $0.field < $1.field }) {
-                lines.append("  Nicht übernommen \(field.field): \(field.reason)")
+                lines.append("  Not imported \(field.field): \(field.reason)")
             }
-            for warning in item.warnings { lines.append("  Hinweis: \(warning)") }
+            for warning in item.warnings { lines.append("  Note: \(warning)") }
         }
         return lines.joined(separator: "\n") + "\n"
     }

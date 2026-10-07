@@ -53,11 +53,11 @@ struct JumpImporterTests {
         let report = try #require(plan.report.connections.first)
         #expect(report.ignoredFields.contains { $0.field == "FutureJumpField" })
         for field in ["ColorDepthCode", "RdpPerformanceFlags", "ConnectionTypeCode", "TypeCode", "OsTypeCode", "GestureProfileCode"] {
-            #expect(report.ignoredFields.contains { $0.field == field && $0.reason.contains("Undokumentiert") })
+            #expect(report.ignoredFields.contains { $0.field == field && $0.reason.contains("Undocumented") })
         }
         #expect(report.warnings.contains(JumpImporter.passwordNotice))
-        #expect(report.warnings.contains { $0.contains("„Test files“ ist in Jump schreibgeschützt") })
-        #expect(!report.warnings.contains { $0.contains("„Work“") }) // disabled: never shared anyway
+        #expect(report.warnings.contains { $0.contains("“Test files” is read-only in Jump") })
+        #expect(!report.warnings.contains { $0.contains("“Work”") }) // disabled: never shared anyway
         let source = try syntheticJump()
         let reported = Set(report.importedFields + report.ignoredFields.map(\.field))
         #expect(Set(source.keys).isSubset(of: reported))
@@ -147,15 +147,15 @@ struct JumpImporterTests {
         let plan = try JumpImporter(directory: temporary.url).plan(existing: [])
         #expect(plan.entries.count == 2)
         #expect(plan.report.connections.count == 5)
-        #expect(plan.report.connections[1].warnings.contains { $0.contains("Doppelte UniqueId") })
+        #expect(plan.report.connections[1].warnings.contains { $0.contains("Duplicate UniqueId") })
         let issues = plan.report.connections[2].ignoredFields.map(\.field)
         #expect(issues.contains("TcpPort") && issues.contains("ClipboardRedirection"))
         #expect(issues.contains("DriveMappings[0].UnknownDriveField"))
         #expect(plan.report.connections[3].action == nil)
-        #expect(plan.report.connections[4].warnings.contains { $0.contains("UniqueId fehlt") })
+        #expect(plan.report.connections[4].warnings.contains { $0.contains("UniqueId missing") })
     }
 
-    @Test func reimportKeepsSprungTrustAndNewerLastConnected() async throws {
+    @Test func reimportKeepsWeitblickTrustAndNewerLastConnected() async throws {
         let temporary = try TemporaryDirectory()
         var source = minimalJump()
         source["SslCertificateFingerPrint"] = "AA:BB:CC"
@@ -164,7 +164,7 @@ struct JumpImporterTests {
         let importer = JumpImporter(directory: temporary.url)
         let store = ConnectionStore(fileURL: temporary.storeURL)
         try await importer.apply(importer.plan(existing: []), to: store)
-        // In Sprung since the import: a new certificate trusted, a newer connection made.
+        // In Weitblick Remote since the import: a new certificate trusted, a newer connection made.
         var local = await store.connections[0]
         local.security.trustedCertificateFingerprints.append("dd:ee:ff")
         local.lastConnected = Date(timeIntervalSinceReferenceDate: 700000000)

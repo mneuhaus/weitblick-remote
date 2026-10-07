@@ -5,10 +5,10 @@
 #
 # Types through the KeyboardEngine (German layout) into Notepad, checks shortcut translations, moves
 # text, images, HTML, RTF and files through the clipboard channel in both directions (private
-# pasteboard), checks drive redirection (build/e2e-work/share as \\tsclient\sprung-e2e), printers
+# pasteboard), checks drive redirection (build/e2e-work/share as \\tsclient\weitblick-e2e), printers
 # and audio, and reconnects after unplugging the VM's network adapter. Evidence (log, FreeRDP log,
 # screenshots, transferred files, os_log) goes to build/evidence/m5-e2e-<time>/.
-# --takeover: see scripts/testvm.sh. --no-build uses the existing build/sprung-e2e.
+# --takeover: see scripts/testvm.sh. --no-build uses the existing build/weitblick-e2e.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -39,17 +39,17 @@ if [[ "$BUILD" == 1 ]]; then
 fi
 
 cd "$ROOT"
-# Run a private copy: a parallel build.sh overwrites build/sprung-e2e in place, and macOS kills a
+# Run a private copy: a parallel build.sh overwrites build/weitblick-e2e in place, and macOS kills a
 # process whose executable pages change (SIGKILL, code signature invalid).
-RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sprung-e2e.XXXXXX")"
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weitblick-e2e.XXXXXX")"
 trap 'reconnect_vm_network; rm -rf "$RUN_DIR"' EXIT
-cp "$ROOT/build/sprung-e2e" "$RUN_DIR/sprung-e2e"
+cp "$ROOT/build/weitblick-e2e" "$RUN_DIR/weitblick-e2e"
 START="$(date '+%Y-%m-%d %H:%M:%S')"
 set +e
-"$RUN_DIR/sprung-e2e" --env "$ROOT/.testvm.env" --out "$EVIDENCE" --runs "$RUNS" 2>&1 | tee "$EVIDENCE/e2e.log"
+"$RUN_DIR/weitblick-e2e" --env "$ROOT/.testvm.env" --out "$EVIDENCE" --runs "$RUNS" 2>&1 | tee "$EVIDENCE/e2e.log"
 STATUS=${PIPESTATUS[0]}
 set -e
-log show --start "$START" --predicate 'subsystem == "nrw.neuhaus.sprung"' --info --style compact \
+log show --start "$START" --predicate 'subsystem == "nrw.neuhaus.weitblick-remote"' --info --style compact \
   >"$EVIDENCE/oslog.txt" 2>/dev/null || true
 echo "evidence: $EVIDENCE"
 exit "$STATUS"

@@ -72,7 +72,7 @@ struct RDPFileTests {
         #expect(!imported.connection.redirection.driveRedirection)
         #expect(imported.connection.redirection.drives.isEmpty)
         #expect(imported.ignoredFields.map(\.field) == ["unknownfield"])
-        #expect(imported.warnings.contains { $0.contains("Gespeichertes Passwort") })
+        #expect(imported.warnings.contains { $0.contains("Saved password") })
         #expect(!imported.warnings.joined().contains("SYNTHETIC-SECRET"))
         let encoded = try RDPFile.encode(imported.connection, encoding: .utf8)
         #expect(!String(decoding: encoded, as: UTF8.self).contains("password"))

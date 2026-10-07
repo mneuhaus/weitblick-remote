@@ -20,7 +20,7 @@ struct KeyedArchiveGraph {
         // Rename that key before parsing XML back, otherwise Foundation recreates the opaque UID.
         let xmlData = try PropertyListSerialization.data(fromPropertyList: raw, format: .xml, options: 0)
         guard var xml = String(data: xmlData, encoding: .utf8) else { throw JumpInputProfileError.invalidArchive }
-        let marker = "SprungArchiveUID_" + UUID().uuidString
+        let marker = "WeitblickArchiveUID_" + UUID().uuidString
         xml = xml.replacingOccurrences(of: "<key>CF$UID</key>", with: "<key>\(marker)</key>")
         guard let normalized = try PropertyListSerialization.propertyList(from: Data(xml.utf8), options: [], format: nil)
                 as? [String: Any],

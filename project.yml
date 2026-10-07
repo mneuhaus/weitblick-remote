@@ -1,22 +1,30 @@
-name: Sprung
+name: WeitblickRemote
 options:
   bundleIdPrefix: nrw.neuhaus
-  developmentLanguage: de
+  # English is the source language; German comes from the string catalogs (Localizable.xcstrings,
+  # InfoPlist.xcstrings, the ConnectionStore package's catalog).
+  developmentLanguage: en
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
+
+# Signing lives in the xcconfig (ad-hoc by default, optional gitignored Local.xcconfig on top), so
+# no signing setting may appear below: project and target settings would override it.
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     ARCHS: arm64
-    DEVELOPMENT_TEAM: 273X2BW9X7
-    CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "Apple Development"
     ENABLE_HARDENED_RUNTIME: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    # Emits the localizable strings of each Swift target (.stringsdata) for `xcstringstool sync`.
+    SWIFT_EMIT_LOC_STRINGS: YES
 
 packages:
   KeyboardEngine:
@@ -43,113 +51,120 @@ settingGroups:
       - -framework Security
 
 targets:
-  SprungBridge:
+  WeitblickBridge:
     type: library.static
     platform: macOS
     sources:
-      - Sources/SprungBridge
+      - Sources/WeitblickBridge
     settings:
       base:
         SYSTEM_HEADER_SEARCH_PATHS:
           - $(SRCROOT)/vendor/install/include/freerdp3
           - $(SRCROOT)/vendor/install/include/winpr3
-        USER_HEADER_SEARCH_PATHS: $(SRCROOT)/Sources/SprungBridge/include
+        USER_HEADER_SEARCH_PATHS: $(SRCROOT)/Sources/WeitblickBridge/include
         GCC_C_LANGUAGE_STANDARD: gnu17
         GCC_WARN_UNUSED_PARAMETER: NO
         CLANG_WARN_DOCUMENTATION_COMMENTS: NO
         SKIP_INSTALL: YES
 
-  SprungKit:
+  WeitblickKit:
     type: library.static
     platform: macOS
     sources:
-      - Sources/SprungKit
+      - Sources/WeitblickKit
     dependencies:
-      - target: SprungBridge
+      - target: WeitblickBridge
     settings:
       base:
         SKIP_INSTALL: YES
         SWIFT_INSTALL_OBJC_HEADER: NO
 
-  Sprung:
+  WeitblickRemote:
     type: application
     platform: macOS
     sources:
-      - Sources/Sprung
+      - Sources/WeitblickRemote
+      # Shown in the About panel (AboutPanel.swift).
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_NOTICES.md
+        buildPhase: resources
     dependencies:
-      - target: SprungKit
-      - target: SprungBridge
+      - target: WeitblickKit
+      - target: WeitblickBridge
       - package: KeyboardEngine
         product: KeyboardEngine
       - package: ConnectionStore
         product: ConnectionStore
     scheme:
-      testTargets: [SprungTests]
+      testTargets: [WeitblickRemoteTests]
     settings:
       groups: [freerdpLink]
       base:
-        PRODUCT_NAME: Sprung
+        PRODUCT_NAME: Weitblick Remote
+        PRODUCT_MODULE_NAME: WeitblickRemote
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Document type for .rdp files; the generated Info.plist keys are merged into it.
-        INFOPLIST_FILE: Sources/Sprung/Support/Info.plist
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Leitet das Mikrofon an den entfernten Windows-PC weiter, wenn die Verbindung das erlaubt."
-        CODE_SIGN_ENTITLEMENTS: Sources/Sprung/Support/Sprung.entitlements
-        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung
-        MARKETING_VERSION: "0.1.0"
+        INFOPLIST_FILE: Sources/WeitblickRemote/Support/Info.plist
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Passes the microphone on to the remote Windows PC when the connection allows it."
+        CODE_SIGN_ENTITLEMENTS: Sources/WeitblickRemote/Support/WeitblickRemote.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.weitblick-remote
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Sprung
+        INFOPLIST_KEY_CFBundleDisplayName: Weitblick Remote
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_NSHumanReadableCopyright: "Apache-2.0"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 Marc Neuhaus"
 
-  sprung-smoke:
+  weitblick-smoke:
     type: tool
     platform: macOS
     sources:
-      - Sources/SprungSmoke
+      - Sources/WeitblickSmoke
     dependencies:
-      - target: SprungKit
-      - target: SprungBridge
+      - target: WeitblickKit
+      - target: WeitblickBridge
     scheme: {}
     settings:
       groups: [freerdpLink]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung.smoke
+        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.weitblick-remote.smoke
 
   # Keyboard and clipboard end-to-end test against the VM (scripts/e2e.sh).
-  sprung-e2e:
+  weitblick-e2e:
     type: tool
     platform: macOS
     sources:
-      - Sources/SprungE2E
-      - Sources/SprungSmoke/SmokeProbe.swift
-      - Sources/SprungSmoke/FramebufferSnapshot.swift
-      - Sources/Sprung/Input/RemoteKeyboard+Actions.swift
+      - Sources/WeitblickE2E
+      - Sources/WeitblickSmoke/SmokeProbe.swift
+      - Sources/WeitblickSmoke/FramebufferSnapshot.swift
+      - Sources/WeitblickRemote/Input/RemoteKeyboard+Actions.swift
     dependencies:
-      - target: SprungKit
-      - target: SprungBridge
+      - target: WeitblickKit
+      - target: WeitblickBridge
       - package: KeyboardEngine
         product: KeyboardEngine
     scheme: {}
     settings:
       groups: [freerdpLink]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung.e2e
+        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.weitblick-remote.e2e
 
   # Pure logic of the app, compiled in directly so the tests need no app host.
-  SprungTests:
+  WeitblickRemoteTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - Tests/SprungTests
-      - Sources/Sprung/Session/DesktopGeometry.swift
-      - Sources/Sprung/Session/ScrollAccumulator.swift
-      - Sources/Sprung/Session/RemoteCursors.swift
-      - Sources/Sprung/Input/SystemShortcutTap.swift
-      - Sources/Sprung/Model
+      - Tests/WeitblickRemoteTests
+      - Sources/WeitblickRemote/Session/DesktopGeometry.swift
+      - Sources/WeitblickRemote/Session/ScrollAccumulator.swift
+      - Sources/WeitblickRemote/Session/RemoteCursors.swift
+      - Sources/WeitblickRemote/Input/SystemShortcutTap.swift
+      - Sources/WeitblickRemote/Model
     dependencies:
-      - target: SprungKit
-      - target: SprungBridge
+      - target: WeitblickKit
+      - target: WeitblickBridge
       - package: KeyboardEngine
         product: KeyboardEngine
       - package: ConnectionStore
@@ -157,5 +172,5 @@ targets:
     settings:
       groups: [freerdpLink]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.sprung.tests
+        PRODUCT_BUNDLE_IDENTIFIER: nrw.neuhaus.weitblick-remote.tests
         GENERATE_INFOPLIST_FILE: YES

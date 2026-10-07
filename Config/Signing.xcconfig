@@ -1,0 +1,8 @@
+// Code signing for every target. The default is ad-hoc ("-"), so a fresh clone builds without an
+// Apple account. A gitignored Local.xcconfig in the repository root may set a personal identity
+// (see docs/RELEASING.md): macOS then keeps privacy grants and Keychain access across updates.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+#include? "../Local.xcconfig"

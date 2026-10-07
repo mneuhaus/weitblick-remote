@@ -20,7 +20,7 @@ struct CredentialStoreTests {
     }
 
     @Test func realKeychainThrowawayServiceAlwaysCleansUp() throws {
-        let service = "nrw.neuhaus.sprung.tests." + UUID().uuidString
+        let service = "nrw.neuhaus.weitblick-remote.tests." + UUID().uuidString
         let store = KeychainCredentialStore(service: service)
         let id = UUID()
         defer {

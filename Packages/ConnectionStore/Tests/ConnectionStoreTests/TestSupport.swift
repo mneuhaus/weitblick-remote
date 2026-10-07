@@ -5,7 +5,7 @@ import Testing
 final class TemporaryDirectory: @unchecked Sendable {
     let url: URL
     init() throws {
-        url = FileManager.default.temporaryDirectory.appendingPathComponent("SprungStoreTests-" + UUID().uuidString)
+        url = FileManager.default.temporaryDirectory.appendingPathComponent("WeitblickStoreTests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
     deinit { try? FileManager.default.removeItem(at: url) }

@@ -4,7 +4,7 @@
 #   scripts/smoke.sh [--takeover] [--no-build] [--cycles N] [--soak SECONDS]
 #
 # --takeover disconnects another user's VM console session first (see scripts/testvm.sh).
-# --no-build uses the existing build/sprung-smoke.
+# --no-build uses the existing build/weitblick-smoke.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,9 +30,9 @@ if [[ "$BUILD" == 1 ]]; then
 fi
 
 cd "$ROOT"
-# Run a private copy: a parallel build.sh overwrites build/sprung-smoke in place, and macOS kills a
+# Run a private copy: a parallel build.sh overwrites build/weitblick-smoke in place, and macOS kills a
 # process whose executable pages change (SIGKILL, code signature invalid).
-RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sprung-smoke.XXXXXX")"
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/weitblick-smoke.XXXXXX")"
 trap 'rm -rf "$RUN_DIR"' EXIT
-cp "$ROOT/build/sprung-smoke" "$RUN_DIR/sprung-smoke"
-"$RUN_DIR/sprung-smoke" --env "$ROOT/.testvm.env" --out "$ROOT/build" "${ARGS[@]+"${ARGS[@]}"}"
+cp "$ROOT/build/weitblick-smoke" "$RUN_DIR/weitblick-smoke"
+"$RUN_DIR/weitblick-smoke" --env "$ROOT/.testvm.env" --out "$ROOT/build" "${ARGS[@]+"${ARGS[@]}"}"

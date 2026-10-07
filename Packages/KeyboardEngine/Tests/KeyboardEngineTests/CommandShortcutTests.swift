@@ -183,7 +183,7 @@ struct CommandShortcutTests {
         #expect(h.take() == tap(SC.lWin))
     }
 
-    /// From Jump's default input profile; ⌘Q reaches the session instead of quitting Sprung.
+    /// From Jump's default input profile; ⌘Q reaches the session instead of quitting Weitblick Remote.
     @Test func commandQClosesTheRemoteWindow() {
         var h = Harness()
         h.press(.lCmd)
