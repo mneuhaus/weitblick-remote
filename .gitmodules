@@ -1,0 +1,3 @@
+[submodule "vendor/FreeRDP"]
+	path = vendor/FreeRDP
+	url = https://github.com/FreeRDP/FreeRDP
