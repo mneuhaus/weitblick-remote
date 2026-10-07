@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weitblick Remote – free, native Remote Desktop client for Mac</title>
+  <meta name="description" content="Weitblick Remote is a free, open-source RDP client for macOS. Mac shortcuts translated like Jump Desktop, clipboard with images and files, native tabs, Jump Desktop import. Apple Silicon, macOS 14+.">
+  <link rel="canonical" href="https://mneuhaus.github.io/weitblick-remote/">
+  <meta name="theme-color" content="#f6faf9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#071824" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Weitblick Remote">
+  <meta property="og:title" content="Weitblick Remote – Remote Desktop for Windows PCs, made for the Mac">
+  <meta property="og:description" content="Free, open-source RDP client for macOS with Mac shortcuts translated like Jump Desktop.">
+  <meta property="og:url" content="https://mneuhaus.github.io/weitblick-remote/">
+  <meta property="og:image" content="https://mneuhaus.github.io/weitblick-remote/assets/img/og.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="assets/img/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/css/site.css">
+  <script src="assets/js/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" width="32" height="32" alt="">Weitblick Remote</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#keyboard">Keyboard</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-tools">
+      <a href="https://github.com/mneuhaus/weitblick-remote" aria-label="Source code on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" aria-labelledby="title">
+  <div class="wrap">
+    <img class="hero-icon" src="assets/img/icon-256.png" srcset="assets/img/icon-256.png 1x, assets/img/icon-512.png 2x" width="256" height="256" alt="Weitblick Remote app icon">
+    <h1 id="title">Weitblick Remote</h1>
+    <p class="tagline">Remote Desktop for Windows PCs, made for the Mac. Your Mac shortcuts just work.</p>
+    <p class="lede">A free, open-source RDP client for macOS. It translates your keyboard the way Jump Desktop does, keeps the clipboard in sync with images and files, and imports your Jump Desktop connections.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/mneuhaus/weitblick-remote/releases/latest/download/Weitblick-Remote.dmg">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+        Download for Mac <small>DMG</small>
+      </a>
+      <div class="links-secondary">
+        <a href="https://github.com/mneuhaus/weitblick-remote/releases/latest/download/Weitblick-Remote.zip">ZIP</a>
+        <a href="https://github.com/mneuhaus/weitblick-remote">GitHub</a>
+        <a href="https://github.com/mneuhaus/weitblick-remote/releases">All releases</a>
+      </div>
+    </div>
+    <p class="requirements"><span>macOS 14 Sonoma or later</span><span>Apple Silicon</span><span>Free, Apache-2.0</span></p>
+    <p class="notice">English and German interface. First launch needs one extra step: <a href="#install">see Installation</a>.</p>
+  </div>
+  <div class="hero-stage">
+    <svg class="mountains" viewBox="0 0 1440 260" preserveAspectRatio="none" aria-hidden="true">
+      <path class="l1" d="M0 132 L110 104 L220 122 L350 78 L470 110 L600 70 L720 100 L850 74 L980 112 L1100 84 L1230 116 L1340 92 L1440 108 V260 H0 Z"/>
+      <path class="l2" d="M0 172 L140 134 L270 160 L410 120 L540 162 L670 130 L800 168 L930 134 L1060 166 L1200 128 L1320 158 L1440 140 V260 H0 Z"/>
+      <path class="l3" d="M0 206 L160 174 L330 210 L520 168 L690 202 L860 176 L1020 208 L1190 180 L1320 202 L1440 186 V260 H0 Z"/>
+      <path class="base" d="M0 238 L220 218 L470 242 L700 220 L940 240 L1180 222 L1440 234 V260 H0 Z"/>
+    </svg>
+    <figure class="hero-shot">
+      <a href="assets/screenshots/session-light-2200.webp" data-dark="assets/screenshots/session-dark-2200.webp" data-lightbox data-caption="A Windows 11 session in its own tab, next to the overview.">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" type="image/webp" srcset="assets/screenshots/session-dark-1100.webp 1100w, assets/screenshots/session-dark-2200.webp 2200w" sizes="(max-width: 1052px) calc(100vw - 32px), 1020px">
+          <source type="image/webp" srcset="assets/screenshots/session-light-1100.webp 1100w, assets/screenshots/session-light-2200.webp 2200w" sizes="(max-width: 1052px) calc(100vw - 32px), 1020px">
+          <img src="assets/screenshots/session-light.png" width="1600" height="1122" alt="Weitblick Remote window with three tabs: the overview, Workshop and Office PC; the Office PC tab shows a Windows 11 desktop with Notepad.">
+        </picture>
+      </a>
+    </figure>
+  </div>
+</section>
+
+<section id="why" aria-labelledby="why-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Why Weitblick Remote</span>
+      <h2 id="why-title">Coming from Jump Desktop or Microsoft’s Windows App?</h2>
+      <p>Weitblick Remote was built to replace Jump Desktop as a daily RDP client for a handful of Windows PCs. It focuses on the two things you touch all day: the keyboard and the clipboard.</p>
+    </div>
+    <div class="why">
+      <article>
+        <div class="keys" aria-hidden="true"><kbd>⌘C</kbd><kbd>⌘←</kbd><kbd>⌥←</kbd><kbd>⌘⇥</kbd><kbd>⌥L</kbd></div>
+        <h3>Your Mac muscle memory works in Windows</h3>
+        <p>⌘C copies, ⌘← jumps to the start of the line, ⌥← moves by word, ⌘⇥ switches Windows apps, ⌘Q closes the Windows app. On a German keyboard ⌥L still types @.</p>
+      </article>
+      <article>
+        <div class="keys" aria-hidden="true"><span class="chip">Jump Desktop import</span><span class="chip">.rdp files</span></div>
+        <h3>Move over in a minute</h3>
+        <p>On first start it offers to import your Jump Desktop connections, including shared folders, trusted certificates and Wake-on-LAN addresses. Passwords are asked once and kept in the Keychain. .rdp files open, too.</p>
+      </article>
+      <article>
+        <div class="keys" aria-hidden="true"><span class="chip">Apache-2.0</span><span class="chip">No account</span><span class="chip">No telemetry</span></div>
+        <h3>Free, open, local</h3>
+        <p>No subscription, no account, no telemetry. Built on FreeRDP, licensed under Apache-2.0, with the full source on GitHub. Your connections stay on your Mac.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="alt" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Features</span>
+      <h2 id="features-title">Everything a daily RDP client needs</h2>
+    </div>
+    <div class="features">
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></svg></div>
+        <h3>Mac shortcuts, translated</h3>
+        <p>⌘C, ⌘V, ⌘X and ⌘Z become their Ctrl versions, ⌘←/→ is Home/End, ⌥←/→ jumps by word, ⌘⇥ is Alt+Tab and ⌘Q is Alt+F4. Prefer plain Windows keys? Switch a connection to “Windows 1:1”.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3Z"/></svg></div>
+        <h3>German and international layouts</h3>
+        <p>The session uses your Mac’s keyboard layout: German, Swiss, US, British and more. ⌥ symbols arrive as typed: @ € { } [ ] | \ ~ and „quotes“. Dead keys like ´ and ^ compose as on the Mac.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="4.5" width="13" height="16.5" rx="2"/><path d="M9 4.5V3.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 10.5h6M9 14h6M9 17.5h3.5"/></svg></div>
+        <h3>Clipboard with images and files</h3>
+        <p>Text, formatted text (HTML, RTF) and images in both directions. Copy files or whole folders in Finder and paste them in Explorer, and the other way round, up to 2&nbsp;GB per copy.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15.5" rx="2.5"/><path d="M3 9h18M9 4.5V9M15 4.5V9"/></svg></div>
+        <h3>Native tabs</h3>
+        <p>An overview tab plus one tab per session, built on real macOS window tabs: drag a tab out to give it its own window, switch with ⌃⌥⌘← / →. Or open every session in its own window.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M8 14.5h.01M12 12.5v4M15 13v3"/></svg></div>
+        <h3>Folders, audio, printers</h3>
+        <p>Share Mac folders as drives in Windows. Play sound on the Mac, on the PC or not at all. Your Mac’s printers show up in Windows. The microphone can be passed through per connection.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.35-5.65"/><path d="M20 4v4.5h-4.5"/></svg></div>
+        <h3>Auto-reconnect</h3>
+        <p>Wi-Fi hiccup? The session reconnects on its own to the same Windows session, with your programs still open. It keeps trying for about three to four minutes.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5 4.5-4.5"/><path d="M4.5 16.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2"/></svg></div>
+        <h3>Jump Desktop import</h3>
+        <p>Imports every connection from Jump Desktop on first start, with a preview before anything is saved. Run it again any time from the File menu; a re-import updates instead of duplicating.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4.5"/><path d="m11.2 11.8 8.3-8.3M16.5 6.5l2.5 2.5M14 9l2 2"/></svg></div>
+        <h3>Passwords in the Keychain</h3>
+        <p>Passwords live in the macOS Keychain, saved only after Windows accepted them, and they stay on this Mac (not synced to iCloud).</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Certificate trust</h3>
+        <p>The first time, you see the PC’s certificate and its SHA-256 fingerprint and decide: once, always, or not at all. If a trusted certificate ever changes, you get a clear warning.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.4 6.6a8 8 0 1 0 11.2 0"/></svg></div>
+        <h3>Wake-on-LAN</h3>
+        <p>Wake a sleeping PC from the connection’s context menu. The MAC addresses come along from Jump Desktop.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/></svg></div>
+        <h3>Retina sharp</h3>
+        <p>Sessions at full Retina resolution with crisp text. Resize the window and Windows follows with a matching resolution. Full screen with ⌃⌘F.</p>
+      </article>
+      <article class="feature">
+        <div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></div>
+        <h3>Older Windows, too</h3>
+        <p>For old Windows 7 or embedded PCs, switch off Network Level Authentication per connection. TLS 1.0 and classic RDP security are then allowed as fallbacks.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="keyboard" aria-labelledby="keyboard-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Keyboard</span>
+      <h2 id="keyboard-title">How your keys arrive in Windows</h2>
+      <p>The default rules of the “Mac shortcuts” mode, taken from the app’s keyboard engine. They follow Jump Desktop’s defaults. Add ⇧ to the navigation shortcuts to select. In “Windows 1:1” mode, ⌘ is the Windows key, ⌥ is Alt and ⌃ is Ctrl, without any translation.</p>
+    </div>
+    <div class="keymap-wrap">
+      <div>
+        <table class="keymap">
+          <caption>Editing and navigation</caption>
+          <thead><tr><th scope="col">On the Mac</th><th scope="col">In Windows</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>⌘</kbd><span class="plus">+</span>key</td><td>Ctrl + the same key<span class="note">⌘C, ⌘V, ⌘X, ⌘Z, ⌘A, ⌘S, ⌘F …</span></td></tr>
+            <tr><td><kbd>⌘⇧Z</kbd></td><td>Ctrl+Y (redo)</td></tr>
+            <tr><td><kbd>⌘←</kbd> <kbd>⌘→</kbd></td><td>Home / End</td></tr>
+            <tr><td><kbd>⌘↑</kbd> <kbd>⌘↓</kbd></td><td>Ctrl+Home / Ctrl+End</td></tr>
+            <tr><td><kbd>⌥←</kbd> <kbd>⌥→</kbd></td><td>Ctrl+← / Ctrl+→ (word)</td></tr>
+            <tr><td><kbd>⌥↑</kbd> <kbd>⌥↓</kbd></td><td>Ctrl+↑ / Ctrl+↓ (paragraph)</td></tr>
+            <tr><td><kbd>⌥⌫</kbd></td><td>Ctrl+Backspace (delete word)</td></tr>
+            <tr><td><kbd>⌥⌦</kbd></td><td>Ctrl+Delete</td></tr>
+            <tr><td><kbd>⌘⌫</kbd></td><td>Shift+Home, Backspace<span class="note">deletes to the start of the line</span></td></tr>
+            <tr><td><kbd>⌘⌦</kbd></td><td>Shift+End, Delete</td></tr>
+            <tr><td><kbd>⌘[</kbd> <kbd>⌘]</kbd></td><td>Alt+← / Alt+→ (back, forward)<span class="note">by typed character: on German layouts ⌘⌥5 / ⌘⌥6</span></td></tr>
+            <tr><td><kbd>⌃</kbd><span class="plus">+</span>key</td><td>Ctrl + key</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <table class="keymap">
+          <caption>Windows and system</caption>
+          <thead><tr><th scope="col">On the Mac</th><th scope="col">In Windows</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>⌘⇥</kbd> <kbd>⌘⇧⇥</kbd></td><td>Alt+Tab / Alt+Shift+Tab<span class="note">Alt stays down while ⌘ is held</span></td></tr>
+            <tr><td><kbd>⌘Q</kbd></td><td>Alt+F4 (closes the Windows app)</td></tr>
+            <tr><td><kbd>⌘Space</kbd></td><td>Windows key (search)</td></tr>
+            <tr><td><kbd>⌘</kbd> tapped alone</td><td>Windows key (Start menu)</td></tr>
+            <tr><td><kbd>⌥</kbd> tapped alone</td><td>Alt (menu and ribbon key tips)</td></tr>
+            <tr><td><kbd>⌥⌘Esc</kbd></td><td>Ctrl+Shift+Esc (Task Manager)</td></tr>
+            <tr><td><kbd>⌃⌥⌫</kbd> <kbd>⌃⌥⌦</kbd></td><td>Ctrl+Alt+Del</td></tr>
+            <tr><td><kbd>⌥</kbd><span class="plus">+</span>key</td><td>The character your Mac layout types<span class="note">@ € [ ] { } | \ ~ „ “ …; otherwise Alt + key (⌥F → Alt+F, ⌥F4 → Alt+F4)</span></td></tr>
+            <tr><td><kbd>F13</kbd> <kbd>F14</kbd> <kbd>F15</kbd></td><td>Print Screen / Scroll Lock / Pause</td></tr>
+            <tr><td><kbd>Help</kbd> · keypad <kbd>Clear</kbd></td><td>Insert · Num Lock</td></tr>
+          </tbody>
+        </table>
+        <table class="keymap" style="margin-top:20px">
+          <caption>Stays on the Mac</caption>
+          <tbody>
+            <tr><td><kbd>⌃⌘F</kbd></td><td>Full screen</td></tr>
+            <tr><td><kbd>⌃⌥⌘←</kbd> <kbd>⌃⌥⌘→</kbd></td><td>Previous / next tab</td></tr>
+            <tr><td><kbd>⌃⌥⌘1</kbd> … <kbd>⌃⌥⌘9</kbd></td><td>Overview, then sessions</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="keymap-notes">
+      <div>
+        <h3>⌘⇥ and ⌘Space</h3>
+        <p>macOS handles these system shortcuts (and ⌃←/→) before any app. Weitblick Remote passes them to Windows in full screen, or always, once you grant the Accessibility permission. Without it, ⌘⇥ keeps switching Mac apps.</p>
+      </div>
+      <div>
+        <h3>Four ⌥ strategies</h3>
+        <p>Smart (default): useful characters are typed, everything else becomes Alt. Jump style: right ⌥ types characters, left ⌥ is Alt. Or always Alt, or always characters. Per connection, or for the current session from the Session menu.</p>
+      </div>
+      <div>
+        <h3>Quitting the app</h3>
+        <p>In a session ⌘Q belongs to Windows. Quit Weitblick Remote from its menu, or press ⌘Q while the overview tab is active. With sessions open, it asks first.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="screenshots" class="alt" aria-labelledby="screenshots-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Screenshots</span>
+      <h2 id="screenshots-title">A calm, native Mac app</h2>
+      <p>The demo connections are made up; the Windows PC is a test VM.</p>
+    </div>
+    <div class="gallery">
+      <figure>
+        <a href="assets/screenshots/overview-light-1600.webp" data-dark="assets/screenshots/overview-dark-1600.webp" data-lightbox data-caption="Overview: all connections, searchable and sortable.">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp" srcset="assets/screenshots/overview-dark-800.webp 800w, assets/screenshots/overview-dark-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <source type="image/webp" srcset="assets/screenshots/overview-light-800.webp 800w, assets/screenshots/overview-light-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <img src="assets/screenshots/overview-light.png" width="1600" height="1367" loading="lazy" decoding="async" alt="The overview tab listing the connections Office PC, Workshop, Accounting, Server (RDP) and Mac mini (VNC).">
+          </picture>
+        </a>
+        <figcaption><strong>Overview</strong>All connections in one list, with search, sorting and the last connection time.</figcaption>
+      </figure>
+      <figure>
+        <a href="assets/screenshots/editor-keyboard-light-1600.webp" data-dark="assets/screenshots/editor-keyboard-dark-1600.webp" data-lightbox data-caption="Connection settings, keyboard page.">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp" srcset="assets/screenshots/editor-keyboard-dark-800.webp 800w, assets/screenshots/editor-keyboard-dark-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <source type="image/webp" srcset="assets/screenshots/editor-keyboard-light-800.webp 800w, assets/screenshots/editor-keyboard-light-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <img src="assets/screenshots/editor-keyboard-light.png" width="1600" height="1367" loading="lazy" decoding="async" alt="The connection editor on its keyboard page: mode Mac shortcuts, option key strategy Smart, Windows keyboard layout automatic.">
+          </picture>
+        </a>
+        <figcaption><strong>Per-connection settings</strong>Keyboard mode, ⌥ strategy and layout, shared folders, audio, security.</figcaption>
+      </figure>
+      <figure>
+        <a href="assets/screenshots/jump-import-light-1600.webp" data-dark="assets/screenshots/jump-import-dark-1600.webp" data-lightbox data-caption="Jump Desktop import: preview before anything is saved.">
+          <picture>
+            <source media="(prefers-color-scheme: dark)" type="image/webp" srcset="assets/screenshots/jump-import-dark-800.webp 800w, assets/screenshots/jump-import-dark-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <source type="image/webp" srcset="assets/screenshots/jump-import-light-800.webp 800w, assets/screenshots/jump-import-light-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 350px">
+            <img src="assets/screenshots/jump-import-light.png" width="1600" height="1367" loading="lazy" decoding="async" alt="The Jump Desktop import preview listing new connections to take over.">
+          </picture>
+        </a>
+        <figcaption><strong>Jump Desktop import</strong>A preview of every connection before anything is saved.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="install" aria-labelledby="install-title">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Installation</span>
+      <h2 id="install-title">Install in four steps</h2>
+      <p>Weitblick Remote is not notarized by Apple, so macOS asks you to confirm it once. These steps are for macOS 15 Sequoia and macOS 26 Tahoe; macOS 14 works the same or with a Control-click (see the box).</p>
+    </div>
+    <div class="install">
+      <ol class="steps">
+        <li>
+          <h3>Download and copy</h3>
+          <p>Download <a href="https://github.com/mneuhaus/weitblick-remote/releases/latest/download/Weitblick-Remote.dmg">Weitblick-Remote.dmg</a>, open it and drag <span class="ui">Weitblick Remote</span> into your Applications folder. (Using the ZIP: unzip it and move the app to Applications.)</p>
+        </li>
+        <li>
+          <h3>Open the app</h3>
+          <p>Double-click Weitblick Remote in Applications.</p>
+        </li>
+        <li>
+          <h3>macOS blocks it</h3>
+          <p>A message says <span class="ui">“Weitblick Remote” Not Opened</span>, because Apple could not check the app. Click <span class="ui">Done</span>.</p>
+        </li>
+        <li>
+          <h3>Open Anyway</h3>
+          <p>Open <span class="ui">System Settings → Privacy &amp; Security</span> and scroll down to <span class="ui">Security</span>. Next to the note about Weitblick Remote, click <span class="ui">Open Anyway</span>, then confirm with <span class="ui">Open Anyway</span> and your password or Touch ID. From now on the app opens normally.</p>
+        </li>
+      </ol>
+      <div>
+        <div class="card">
+          <h3>Prefer the Terminal?</h3>
+          <p>Remove the quarantine flag after copying the app to Applications:</p>
+          <div class="terminal"><pre><code>xattr -dr com.apple.quarantine "/Applications/Weitblick Remote.app"</code></pre></div>
+          <p>On macOS 14 Sonoma you can also Control-click the app in Finder, choose <span class="ui">Open</span> and confirm.</p>
+        </div>
+        <div class="card">
+          <h3>Why the extra step?</h3>
+          <p>Notarization needs a paid Apple Developer membership. Weitblick Remote is a free project, so the app is signed ad hoc instead. The source code and the release build script are public: you can read them and <a href="#source">build the app yourself</a>.</p>
+        </div>
+        <div class="card">
+          <h3>Permissions macOS asks for</h3>
+          <ul class="permissions">
+            <li><strong>Local Network</strong>, the first time you connect to a PC in your network. Allow it, or connections fail with “host unreachable”.</li>
+            <li><strong>Accessibility</strong> (optional), only to pass ⌘⇥, ⌘Space and ⌃←/→ to Windows.</li>
+            <li><strong>Microphone</strong> (optional), only if you switch it on for a connection.</li>
+          </ul>
+          <p style="margin-top:10px">Because of the ad-hoc signature, macOS asks again for Accessibility, the microphone and Keychain access after each update.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" class="alt" aria-labelledby="faq-title">
+  <div class="wrap">
+    <div class="section-head center">
+      <span class="eyebrow">FAQ</span>
+      <h2 id="faq-title">Questions and honest answers</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Why isn’t the app notarized?</summary>
+        <div class="answer">
+          <p>Apple’s notarization requires a paid developer membership. This is a free, open-source project without one, so the app is signed ad hoc and macOS asks you to confirm it once (<a href="#install">see Installation</a>). The full source and the build script that produces the release are on GitHub.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Does it run on Intel Macs?</summary>
+        <div class="answer">
+          <p>No. Releases are built for Apple Silicon only (M1 and newer) and need macOS 14 Sonoma or later.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Can it connect via VNC?</summary>
+        <div class="answer">
+          <p>Weitblick Remote speaks RDP only. VNC entries, for example imported from Jump Desktop, are kept in the list and open macOS Screen Sharing, which is built into every Mac.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Which Windows versions work?</summary>
+        <div class="answer">
+          <p>Any Windows that can host Remote Desktop: Pro, Enterprise, Education and Server editions (Windows Home cannot be connected to). It is developed and tested against Windows 11 Pro 24H2.</p>
+          <p>For older PCs such as Windows 7 or embedded/IoT systems without Network Level Authentication, switch NLA off on the connection’s security page. Weitblick Remote then also allows TLS 1.0 and classic RDP security, and Windows shows its own sign-in screen. These legacy paths were tested against a Windows 11 VM with NLA disabled, not yet against a real Windows 7 PC.</p>
+        </div>
+      </details>
+      <details>
+        <summary>What about privacy?</summary>
+        <div class="answer">
+          <p>No telemetry, no analytics, no account, no cloud. The app only talks to the computers you add. Connections are stored locally in <code>~/Library/Application Support/Weitblick Remote/connections.json</code>, passwords in your login Keychain, for this Mac only and not synced to iCloud.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Which languages does the app speak?</summary>
+        <div class="answer">
+          <p>The interface is in English and German and follows your Mac’s language setting. The keyboard translation works with any Mac keyboard layout, independent of the interface language.</p>
+        </div>
+      </details>
+      <details>
+        <summary>What doesn’t it do yet?</summary>
+        <div class="answer">
+          <ul>
+            <li>No Remote Desktop Gateway, no multi-monitor sessions, no H.264 video codec yet.</li>
+            <li>Sign-in with user name and password (NTLM, local and domain accounts); no Kerberos, smart cards or Microsoft Entra ID.</li>
+            <li>Files move through copy and paste; drag and drop between the session and Finder is not supported. While a large file pasted from Windows is downloading into Finder, the window waits without a progress bar.</li>
+            <li>Printers need the “Microsoft Print to PDF” driver on the Windows side. Windows 7 and some embedded systems don’t have it and refuse the Mac printers.</li>
+            <li>Shared folders are always writable; read-only shares from Jump Desktop are skipped.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="source" aria-labelledby="source-title">
+  <div class="wrap split">
+    <div>
+      <span class="eyebrow">Building from source</span>
+      <h2 id="source-title">Build it yourself</h2>
+      <p style="margin-top:14px;color:var(--text-2)">You need Xcode 26 and a few Homebrew tools. FreeRDP and OpenSSL are built and linked statically, so the app has no external dependencies.</p>
+      <div class="terminal"><pre><code>git clone --recurse-submodules https://github.com/mneuhaus/weitblick-remote.git
+cd weitblick-remote
+brew install cmake ninja xcodegen openssl@3
+scripts/build.sh Release</code></pre></div>
+      <p style="color:var(--text-2)">The complete steps, including how the DMG and ZIP are made: <a href="https://github.com/mneuhaus/weitblick-remote/blob/main/docs/RELEASING.md">docs/RELEASING.md</a>.</p>
+    </div>
+    <div id="credits">
+      <span class="eyebrow">Credits and license</span>
+      <h2>Standing on good shoulders</h2>
+      <ul class="credits" style="margin-top:18px">
+        <li><strong><a href="https://www.freerdp.com/">FreeRDP</a></strong><span>The RDP protocol implementation inside Weitblick Remote (3.32.1, with WinPR). Apache License 2.0.</span></li>
+        <li><strong><a href="https://www.openssl.org/">OpenSSL</a></strong><span>TLS and cryptography. Apache License 2.0.</span></li>
+        <li><strong>Notices</strong><span>All bundled third-party code and its licenses: <a href="https://github.com/mneuhaus/weitblick-remote/blob/main/THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</a>.</span></li>
+        <li><strong>License</strong><span>Weitblick Remote is licensed under the <a href="https://github.com/mneuhaus/weitblick-remote/blob/main/LICENSE">Apache License 2.0</a>. © 2026 Marc Neuhaus.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Marc Neuhaus · Apache-2.0</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/mneuhaus/weitblick-remote">GitHub</a>
+      <a href="https://github.com/mneuhaus/weitblick-remote/releases">Releases</a>
+      <a href="https://github.com/mneuhaus/weitblick-remote/issues">Issues</a>
+    </nav>
+    <p class="fine">Windows and Remote Desktop are trademarks of Microsoft. Jump Desktop is a product of Phase Five Systems. Weitblick Remote is an independent project and not affiliated with either.</p>
+  </div>
+</footer>
+
+</body>
+</html>
