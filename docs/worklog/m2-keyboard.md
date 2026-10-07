@@ -142,3 +142,8 @@ M3 pitfalls to watch:
 ## Next step
 
 M3 integration (other agent). For M2: nothing open except answers to the questions above.
+
+## Entscheidungen Orchestrator (2026-10-07)
+- Smart: ⌥A/⌥O usw. → Alt+Buchstabe bleibt so (å/ø braucht Marc nicht; wer es braucht, nimmt "Immer Zeichen" oder Jump-Stil).
+- ⌥ allein antippen → Alt-Tipp bleibt (Windows-Standardverhalten für Menüleiste/Ribbon).
+- 0,5 s Grenze für ⌘ → Win-Tipp bleibt.
