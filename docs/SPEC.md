@@ -6,7 +6,7 @@ Kernfeatures sind **Tastatur** (inkl. Übersetzung der Mac-Kurzbefehle wie in Ju
 
 ## Reale Zielsysteme (aus Marcs Jump-Konfiguration)
 
-- 12 RDP-Ziele: Kunden-PCs per NetBIOS-Hostname, Port 3389,
+- 11 RDP-Ziele (plus 1 VNC): Kunden-PCs per NetBIOS-Hostname, Port 3389,
   NLA aktiv, teils mit Domäne, kein Gateway. Ältere Industrie-PCs (evtl. Windows 7/10 IoT) möglich:
   Legacy-TLS und RDP-Security als Fallback müssen gehen.
 - Laufwerksumleitung `~/Downloads` und einem Projektordner bei fast allen Verbindungen.
