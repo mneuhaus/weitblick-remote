@@ -9,6 +9,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIGURATION="${1:-Debug}"
 cd "$ROOT"
 
+# Parallel agents share this checkout: one build at a time.
+if [[ -z "${SPRUNG_BUILD_LOCKED:-}" ]]; then
+  export SPRUNG_BUILD_LOCKED=1
+  exec lockf -t 1800 /tmp/sprung-build.lock "$0" "$@"
+fi
+
 "$ROOT/scripts/build-freerdp.sh"
 xcodegen generate --quiet
 

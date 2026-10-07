@@ -11,6 +11,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/testvm.sh"
+hold_vm_lock "$0" "$@"
 TAKEOVER=0
 RUNS=3
 while [[ $# -gt 0 ]]; do

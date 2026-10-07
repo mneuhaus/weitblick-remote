@@ -20,3 +20,12 @@ require_free_console() {
     exit 1
   fi
 }
+
+# Serializes everything that logs on to the VM (one RDP session at a time on Windows 11 Pro).
+# Call as the first thing after sourcing: hold_vm_lock "$0" "$@"
+hold_vm_lock() {
+  if [[ -z "${SPRUNG_VM_LOCKED:-}" ]]; then
+    export SPRUNG_VM_LOCKED=1
+    exec lockf -t 3600 /tmp/sprung-testvm.lock "$@"
+  fi
+}
