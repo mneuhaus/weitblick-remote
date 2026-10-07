@@ -18,7 +18,8 @@ final class RemoteFileTransfer: @unchecked Sendable {
 
     private static let logger = Logger(subsystem: "nrw.neuhaus.sprung", category: "clipboard")
     /// Where downloads go; one subfolder per transfer.
-    static let rootDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("Sprung-Clipboard", isDirectory: true)
+    static let rootDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("\(AppIdentity.supportFolderName)-Clipboard", isDirectory: true)
     /// Downloaded files stay this long after the pasteboard moved on (an app may still be copying them).
     static let keepAfterUse: TimeInterval = 10 * 60
 

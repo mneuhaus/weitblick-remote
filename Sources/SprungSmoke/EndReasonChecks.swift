@@ -43,6 +43,13 @@ func runEndReasonChecks(_ vm: TestVMEnvironment) async throws {
     let unreachable = try await endedSession(closedPort, decision: .acceptOnce)
     try expect(unreachable, .hostUnreachable, "closed port")
     log("closed port -> \(unreachable.ending!.message)")
+
+    // The test VM requires NLA (UserAuthentication = 1).
+    var withoutNLA = configuration
+    withoutNLA.nla = false
+    let refused = try await endedSession(withoutNLA, decision: .acceptOnce)
+    try expect(refused, .nlaRequired, "NLA off against a server that requires it")
+    log("NLA off against an NLA-only server -> \(refused.ending!.message)")
 }
 
 @MainActor

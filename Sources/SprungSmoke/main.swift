@@ -1,14 +1,17 @@
 // sprung-smoke: headless end-to-end check against the test VM.
 //
-//   sprung-smoke [--env PATH] [--out DIR] [--cycles N] [--soak SECONDS]
+//   sprung-smoke [--env PATH] [--out DIR] [--cycles N] [--soak SECONDS] [--no-nla]
 //
 // Connects, waits for a settled first frame (DIR/smoke.png), moves the mouse, resizes to
 // 1600x1000 and waits for the server's desktop resize (DIR/smoke-resized.png), hovers the
 // search box for a text cursor (DIR/cursors/*.png) and disconnects. Then optionally soaks
 // (mouse, right-click + Esc, wheel and resizes for SECONDS) and runs N connect/disconnect
 // cycles (each asking for a resize during logon) watching memory. In between, sessions that must
-// fail check the end reason the app gets (certificate, wrong password, closed port; see
+// fail check the end reason the app gets (certificate, wrong password, closed port, NLA off; see
 // EndReasonChecks.swift). Exits 0 or 1 with a reason.
+//
+// --no-nla connects without Network Level Authentication (TLS, else standard RDP security; the VM
+// must allow it: UserAuthentication = 0) and skips the end-reason checks, which assume NLA.
 import Darwin
 import Foundation
 import SprungKit
@@ -18,6 +21,7 @@ struct Options {
     var outputDirectory = URL(fileURLWithPath: "build")
     var cycles = 10
     var soakSeconds = 0
+    var nla = true
 
     init(_ arguments: [String]) throws {
         var iterator = arguments.dropFirst().makeIterator()
@@ -27,6 +31,7 @@ struct Options {
             case "--out": outputDirectory = URL(fileURLWithPath: iterator.next() ?? "build")
             case "--cycles": cycles = Int(iterator.next() ?? "") ?? cycles
             case "--soak": soakSeconds = Int(iterator.next() ?? "") ?? soakSeconds
+            case "--no-nla": nla = false
             default: throw SmokeFailure("unknown argument \(argument)")
             }
         }
@@ -51,9 +56,13 @@ func memoryFootprintMB() -> Double {
     return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
 }
 
+/// Set from --no-nla.
+nonisolated(unsafe) var useNLA = true
+
 @MainActor
 func makeConfiguration(_ vm: TestVMEnvironment, size: PixelSize) -> SessionConfiguration {
     var configuration = SessionConfiguration(host: vm.host, username: vm.username, password: vm.password, desktopSize: size)
+    configuration.nla = useNLA
     configuration.audio = .off
     configuration.clipboard = false // covered by sprung-e2e
     return configuration
@@ -107,6 +116,12 @@ func runScenario(_ vm: TestVMEnvironment, output: URL) async throws {
     log("connected")
 
     try await probe.waitForSettledFrame()
+    // Without NLA Windows logs on inside the session ("Bitte warten" on black) before the desktop.
+    let desktopDeadline = Date().addingTimeInterval(90)
+    while (FramebufferSnapshot(session: probe.session)?.sampledColorCount ?? 0) < 8, Date() < desktopDeadline {
+        try await Task.sleep(for: .seconds(1))
+        try await probe.waitForSettledFrame()
+    }
     log("first frame settled after \(probe.frameCount) frame signals, \(probe.pointerImages.count) cursor shapes")
     try saveSnapshot(probe, to: output.appendingPathComponent("smoke.png"), expecting: initial)
 
@@ -225,8 +240,9 @@ func main() async -> Int32 {
         }
         let vm = try TestVMEnvironment(contentsOf: envFile)
         try FileManager.default.createDirectory(at: options.outputDirectory, withIntermediateDirectories: true)
+        useNLA = options.nla
         try await runScenario(vm, output: options.outputDirectory)
-        try await runEndReasonChecks(vm)
+        if options.nla { try await runEndReasonChecks(vm) }
         try await runSoak(vm, seconds: options.soakSeconds)
         try await runCycles(vm, count: options.cycles)
         log("SMOKE OK")

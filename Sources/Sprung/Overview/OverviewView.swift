@@ -7,6 +7,7 @@ struct OverviewActions {
     var edit: (UUID) -> Void
     var duplicate: (UUID) -> Void
     var export: (UUID) -> Void
+    var wake: (UUID) -> Void
     var delete: (Set<UUID>) -> Void
     var newConnection: () -> Void
     var importFromJump: () -> Void
@@ -80,6 +81,9 @@ struct OverviewView: View {
                 Button("Duplizieren") { actions.duplicate(id) }
                 if model.library.connection(with: id)?.protocol == .rdp {
                     Button("Als .rdp exportieren…") { actions.export(id) }
+                }
+                if model.library.connection(with: id)?.advanced.wakeOnLANMACAddresses.isEmpty == false {
+                    Button("Aufwecken (Wake-on-LAN)") { actions.wake(id) }
                 }
             }
             Divider()

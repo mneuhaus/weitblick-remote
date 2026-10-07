@@ -56,8 +56,9 @@ static SprungDisconnectReason reason_for_connect_error(uint32_t type, bool wasCo
     case ERRCONNECT_TLS_CONNECT_FAILED:
     case ERRCONNECT_SECURITY_NEGO_CONNECT_FAILED:
     case ERRCONNECT_MCS_CONNECT_INITIAL_ERROR:
-    case ERRCONNECT_HYBRID_REQUIRED_BY_SERVER:
         return SprungDisconnectSecurityFailed;
+    case ERRCONNECT_HYBRID_REQUIRED_BY_SERVER:
+        return SprungDisconnectNLARequired;
     case ERRCONNECT_ACTIVATION_TIMEOUT:
         return SprungDisconnectTimeout;
     default:

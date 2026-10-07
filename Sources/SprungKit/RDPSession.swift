@@ -70,6 +70,11 @@ public final class RDPSession {
         config.deviceScaleFactor = configuration.scale.device
         config.keyboardLayout = configuration.keyboardLayout
         config.ignoreCertificate = configuration.ignoreCertificate
+        config.disableNLA = !configuration.nla
+        config.consoleSession = configuration.consoleSession
+        config.alternateShell = strings.copy(configuration.alternateShell)
+        config.workingDirectory = strings.copy(configuration.workingDirectory)
+        config.loadBalanceInfo = strings.copy(configuration.loadBalanceInfo)
         config.audio = configuration.audio.bridgeValue
         config.microphone = configuration.microphone
         config.printers = configuration.printers

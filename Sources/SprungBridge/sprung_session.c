@@ -1,5 +1,5 @@
-// Session lifecycle: settings, create/connect/disconnect/destroy, auth and certificate hooks.
-// The connection itself runs in sprung_session_thread.c.
+// Session lifecycle: create/connect/disconnect/destroy, auth and certificate hooks. Settings are in
+// sprung_settings.c, the connection itself runs in sprung_session_thread.c.
 #include "sprung_internal.h"
 
 #include <signal.h>
@@ -8,7 +8,6 @@
 
 #include <freerdp/channels/channels.h>
 #include <freerdp/client/channels.h>
-#include <freerdp/constants.h>
 #include <freerdp/event.h>
 #include <winpr/synch.h>
 #include <winpr/wlog.h>
@@ -120,51 +119,6 @@ static BOOL on_client_new(freerdp *instance, rdpContext *context) {
     return TRUE;
 }
 
-static uint32_t clamp_u32(uint32_t value, uint32_t min, uint32_t max) {
-    return value < min ? min : (value > max ? max : value);
-}
-
-static bool apply_config(rdpSettings *s, const SprungSessionConfig *c) {
-    const uint32_t width = clamp_u32(c->width, 200, 8192) & ~1u;
-    const uint32_t height = clamp_u32(c->height, 200, 8192);
-    if (c->stateDirectory && !freerdp_settings_set_string(s, FreeRDP_ConfigPath, c->stateDirectory))
-        return false;
-    return freerdp_settings_set_string(s, FreeRDP_ServerHostname, c->host) &&
-           freerdp_settings_set_uint32(s, FreeRDP_ServerPort, c->port ? c->port : 3389) &&
-           freerdp_settings_set_string(s, FreeRDP_Username, c->username) &&
-           freerdp_settings_set_string(s, FreeRDP_Password, c->password) &&
-           freerdp_settings_set_string(s, FreeRDP_Domain, c->domain) &&
-           freerdp_settings_set_uint32(s, FreeRDP_DesktopWidth, width) &&
-           freerdp_settings_set_uint32(s, FreeRDP_DesktopHeight, height) &&
-           freerdp_settings_set_uint32(s, FreeRDP_DesktopScaleFactor,
-                                       clamp_u32(c->desktopScaleFactor, 100, 500)) &&
-           freerdp_settings_set_uint32(s, FreeRDP_DeviceScaleFactor,
-                                       c->deviceScaleFactor ? c->deviceScaleFactor : 100) &&
-           freerdp_settings_set_uint32(s, FreeRDP_KeyboardLayout, c->keyboardLayout) &&
-           freerdp_settings_set_uint32(s, FreeRDP_ColorDepth, 32) &&
-           freerdp_settings_set_bool(s, FreeRDP_IgnoreCertificate, c->ignoreCertificate) &&
-           freerdp_settings_set_bool(s, FreeRDP_CertificateCallbackPreferPEM, FALSE) &&
-           sprung_redirection_apply(s, c) &&
-           freerdp_settings_set_bool(s, FreeRDP_RedirectClipboard, c->clipboard) &&
-           // Reconnects run in sprung_session_thread.c; the flag makes the server send its cookie.
-           freerdp_settings_set_bool(s, FreeRDP_AutoReconnectionEnabled, c->autoReconnect) &&
-           // Graphics pipeline with the codecs we can decode in software. No AVC: there is no
-           // H.264 decoder in this build, so rdpgfx advertises AVC_DISABLED.
-           freerdp_settings_set_bool(s, FreeRDP_SupportGraphicsPipeline, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxH264, FALSE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxAVC444, FALSE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxAVC444v2, FALSE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxProgressive, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxProgressiveV2, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_GfxPlanar, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_RemoteFxCodec, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_SupportDisplayControl, TRUE) &&
-           freerdp_settings_set_bool(s, FreeRDP_DynamicResolutionUpdate, TRUE) &&
-           freerdp_set_connection_type(s, CONNECTION_TYPE_AUTODETECT) &&
-           freerdp_settings_set_uint32(s, FreeRDP_OsMajorType, OSMAJORTYPE_MACINTOSH) &&
-           freerdp_settings_set_uint32(s, FreeRDP_OsMinorType, OSMINORTYPE_MACINTOSH);
-}
-
 SprungSession *sprung_session_create(const SprungSessionConfig *config,
                                      const SprungCallbacks *callbacks) {
     static pthread_once_t once = PTHREAD_ONCE_INIT;
@@ -178,7 +132,7 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
         return NULL;
     session->callbacks = *callbacks;
     session->autoReconnect = config->autoReconnect;
-    session->desktopScaleFactor = clamp_u32(config->desktopScaleFactor, 100, 500);
+    session->desktopScaleFactor = sprung_clamp_u32(config->desktopScaleFactor, 100, 500);
     session->deviceScaleFactor = config->deviceScaleFactor ? config->deviceScaleFactor : 100;
     pthread_mutex_init(&session->inputLock, NULL);
     pthread_mutex_init(&session->displayLock, NULL);
@@ -200,7 +154,7 @@ SprungSession *sprung_session_create(const SprungSessionConfig *config,
     }
     ((SprungContext *)session->context)->session = session;
 
-    if (!apply_config(session->context->settings, config)) {
+    if (!sprung_settings_apply(session->context->settings, config)) {
         WLog_ERR(SPRUNG_TAG, "applying settings failed");
         sprung_session_destroy(session);
         return NULL;

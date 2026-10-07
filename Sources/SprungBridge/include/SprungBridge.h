@@ -45,6 +45,16 @@ typedef struct {
     /// Windows keyboard layout id (KLID), e.g. 0x0407 for German.
     uint32_t keyboardLayout;
     bool ignoreCertificate;
+    /// No Network Level Authentication (old targets): TLS, else standard RDP security; the
+    /// credentials then go to the Windows logon screen inside the session.
+    bool disableNLA;
+    /// Connects to the console session (mstsc /admin).
+    bool consoleSession;
+    /// Program started instead of the desktop, and its working directory; NULL or "" for none.
+    const char *alternateShell;
+    const char *workingDirectory;
+    /// Load-balancer routing token (.rdp "loadbalanceinfo"); NULL or "" for none.
+    const char *loadBalanceInfo;
     SprungAudioMode audio;
     /// Microphone redirection (audin, macOS backend).
     bool microphone;
@@ -100,6 +110,7 @@ typedef enum {
     SprungDisconnectAccessDenied,
     SprungDisconnectCertificateRejected,
     SprungDisconnectSecurityFailed, ///< TLS or security negotiation
+    SprungDisconnectNLARequired,    ///< NLA was off, but the server requires it
     SprungDisconnectServerEnded,    ///< the server or an administrator ended the session
     SprungDisconnectTakenOver,      ///< another connection took the session
     SprungDisconnectLoggedOff,      ///< the user logged off or disconnected in Windows

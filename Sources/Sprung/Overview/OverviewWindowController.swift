@@ -1,6 +1,7 @@
 import AppKit
 import ConnectionStore
 import os
+import SprungKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -58,6 +59,7 @@ final class OverviewWindowController: NSWindowController, NSWindowDelegate, NSTo
             edit: { [weak self] in self?.edit($0) },
             duplicate: { [weak self] in self?.duplicate($0) },
             export: { [weak self] in self?.export($0) },
+            wake: { [weak self] in self?.wake($0) },
             delete: { [weak self] in self?.confirmDelete($0) },
             newConnection: { [weak self] in self?.newConnection() },
             importFromJump: { [weak self] in self?.importFromJump() },
@@ -172,6 +174,16 @@ final class OverviewWindowController: NSWindowController, NSWindowDelegate, NSTo
             } catch {
                 self?.presentError("Export fehlgeschlagen", error)
             }
+        }
+    }
+
+    /// Sends magic packets to the connection's MAC addresses (limited broadcast, port 9).
+    func wake(_ id: UUID) {
+        guard let connection = library.connection(with: id) else { return }
+        do {
+            try WakeOnLAN.wake(connection.advanced.wakeOnLANMACAddresses)
+        } catch {
+            presentError("Aufwecken fehlgeschlagen", error)
         }
     }
 
@@ -327,6 +339,9 @@ final class OverviewWindowController: NSWindowController, NSWindowDelegate, NSTo
         case RDPFileError.invalidEncoding: "unbekannte Zeichenkodierung"
         case RDPFileError.invalidValue(let key): "ungültiger Wert für „\(key)“"
         case let error as CredentialStoreError: "Schlüsselbund-Fehler \(error.status)"
+        case WakeOnLAN.Failure.invalidMACAddress(let text): "„\(text)“ ist keine MAC-Adresse."
+        case WakeOnLAN.Failure.invalidBroadcastAddress(let text): "„\(text)“ ist keine Broadcast-Adresse."
+        case WakeOnLAN.Failure.socket(let code): "Senden fehlgeschlagen: \(String(cString: strerror(code)))"
         default: error.localizedDescription
         }
     }

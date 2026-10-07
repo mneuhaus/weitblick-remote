@@ -18,6 +18,8 @@ final class Scenario {
     let scratch: URL
     /// FreeRDP's log (rdpsnd at debug level, see main.swift).
     let freerdpLog: URL
+    /// rdpsnd macOS backends loaded by earlier runs (the log is shared by all runs).
+    private(set) var macBackendsBeforeConnect = 0
     private(set) var failures: [String] = []
     private var checks = 0
 
@@ -32,6 +34,7 @@ final class Scenario {
         self.freerdpLog = freerdpLog
         keyboard = try KeyboardDriver(remote: probe.session)
         clipboard = ClipboardSync(remote: probe.session.clipboard, pasteboard: pasteboard)
+        macBackendsBeforeConnect = logLines(containing: "Loaded mac backend for rdpsnd")
     }
 
     var summary: String { "\(checks - failures.count)/\(checks) checks passed" }
@@ -243,8 +246,20 @@ final class Scenario {
         return pasteboard.string(forType: .string) ?? "<no text>"
     }
 
+    /// Waits for a new server clipboard, then until no further one follows for 0.5 s: .NET's
+    /// `SetDataObject(…, copy: true)` announces twice, and the second announcement replaces the first
+    /// while the test reads it.
     func waitForRemoteClipboard(after count: Int) async throws {
         try await probe.wait("server clipboard", timeout: 15) { self.clipboard.publishedRemoteChanges > count }
+        var seen = clipboard.publishedRemoteChanges
+        var quietSince = Date()
+        try await probe.wait("server clipboard to settle", timeout: 10) {
+            if self.clipboard.publishedRemoteChanges != seen {
+                seen = self.clipboard.publishedRemoteChanges
+                quietSince = Date()
+            }
+            return Date().timeIntervalSince(quietSince) > 0.5
+        }
     }
 
     /// Puts content on the private pasteboard and waits until the server took the format list.

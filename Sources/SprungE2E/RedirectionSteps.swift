@@ -57,19 +57,26 @@ extension Scenario {
         check("printers: Mac printers reach Windows (installed, or refused for a missing driver)", !refused.isEmpty, result)
     }
 
-    /// A Windows sound reaches the Mac's audio backend (rdpsnd wave PDUs to the macOS backend).
+    /// A Windows sound reaches the Mac's audio backend (rdpsnd wave PDUs to the macOS backend) when
+    /// playback is local, and nothing arrives when it stays remote or is off.
     func audioPlayback() async throws {
-        let before = waveCount()
+        let mode = probe.session.configuration.audio
+        let before = logLines(containing: "Wave2PDU:") + logLines(containing: "WaveInfo:")
         _ = try await runScript("play-sound", files: true)
         try await Task.sleep(for: .seconds(1))
-        let log = (try? String(contentsOf: freerdpLog, encoding: .utf8)) ?? ""
-        check("audio: macOS backend loaded", log.contains("Loaded mac backend for rdpsnd"), "no mac backend in \(freerdpLog.path)")
-        let waves = waveCount() - before
-        check("audio: wave data arrived (\(waves) PDUs)", waves > 0, "no wave PDUs in \(freerdpLog.path)")
+        let waves = logLines(containing: "Wave2PDU:") + logLines(containing: "WaveInfo:") - before
+        let macBackends = logLines(containing: "Loaded mac backend for rdpsnd") - macBackendsBeforeConnect
+        if mode == .local {
+            check("audio local: macOS backend loaded", macBackends > 0, "no mac backend in \(freerdpLog.path)")
+            check("audio local: wave data arrived (\(waves) PDUs)", waves > 0, "no wave PDUs in \(freerdpLog.path)")
+        } else {
+            check("audio \(mode.rawValue): no macOS backend, no wave data", macBackends == 0 && waves == 0,
+                  "\(macBackends) mac backends, \(waves) wave PDUs")
+        }
     }
 
-    private func waveCount() -> Int {
+    func logLines(containing text: String) -> Int {
         let log = (try? String(contentsOf: freerdpLog, encoding: .utf8)) ?? ""
-        return log.split(whereSeparator: \.isNewline).filter { $0.contains("Wave2PDU:") || $0.contains("WaveInfo:") }.count
+        return log.split(whereSeparator: \.isNewline).filter { $0.contains(text) }.count
     }
 }

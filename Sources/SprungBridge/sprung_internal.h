@@ -100,8 +100,15 @@ SprungDisconnectReason sprung_disconnect_reason(SprungSession *session, uint32_t
 /// Whether a dropped session should be reconnected (network loss, not a deliberate end).
 bool sprung_disconnect_is_network_loss(SprungSession *session, uint32_t error);
 
+// sprung_settings.c
+bool sprung_settings_apply(rdpSettings *settings, const SprungSessionConfig *config);
+
 // sprung_redirection.c
 /// Drives, printers, audio and microphone settings.
 bool sprung_redirection_apply(rdpSettings *settings, const SprungSessionConfig *config);
+
+static inline uint32_t sprung_clamp_u32(uint32_t value, uint32_t min, uint32_t max) {
+    return value < min ? min : (value > max ? max : value);
+}
 
 #endif

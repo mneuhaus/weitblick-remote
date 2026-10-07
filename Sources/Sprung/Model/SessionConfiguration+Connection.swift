@@ -25,6 +25,11 @@ extension SessionConfiguration {
         keyboardLayout = (connection.keyboard.layoutOverride ?? macKeyboardLayout).rawValue
         ignoreCertificate = connection.security.ignoreCertificateErrors
         trustedCertificateFingerprints = connection.security.trustedCertificateFingerprints
+        nla = !connection.security.disableNLA
+        consoleSession = connection.security.consoleSession
+        alternateShell = connection.advanced.alternateShell ?? ""
+        workingDirectory = connection.advanced.workingDir ?? ""
+        loadBalanceInfo = connection.advanced.loadBalanceInfo ?? ""
         let redirection = connection.redirection
         audio = AudioPlayback(redirection.audioPlayback)
         microphone = redirection.microphone

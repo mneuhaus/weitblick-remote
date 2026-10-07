@@ -51,6 +51,26 @@ final class ConnectionMappingTests: XCTestCase {
         XCTAssertFalse(config.clipboard)
     }
 
+    func testLegacyAndSessionOptions() {
+        var connection = Connection(name: "PC", host: "pc01.example")
+        var config = configuration(connection)
+        XCTAssertTrue(config.nla)
+        XCTAssertFalse(config.consoleSession)
+        XCTAssertEqual([config.alternateShell, config.workingDirectory, config.loadBalanceInfo], ["", "", ""])
+
+        connection.security.disableNLA = true
+        connection.security.consoleSession = true
+        connection.advanced.alternateShell = #"C:\Tools\kiosk.exe"#
+        connection.advanced.workingDir = #"C:\Tools"#
+        connection.advanced.loadBalanceInfo = "tsv://MS Terminal Services Plugin.1.Farm"
+        config = configuration(connection)
+        XCTAssertFalse(config.nla)
+        XCTAssertTrue(config.consoleSession)
+        XCTAssertEqual(config.alternateShell, #"C:\Tools\kiosk.exe"#)
+        XCTAssertEqual(config.workingDirectory, #"C:\Tools"#)
+        XCTAssertEqual(config.loadBalanceInfo, "tsv://MS Terminal Services Plugin.1.Farm")
+    }
+
     func testOnlyEnabledWritableDrivesAreSharedAndOnlyWithTheMasterSwitch() {
         var connection = Connection(name: "PC", host: "pc01.example")
         connection.redirection.drives = [

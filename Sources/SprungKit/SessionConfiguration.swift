@@ -17,6 +17,17 @@ public struct SessionConfiguration: Sendable {
     /// SHA-256 fingerprints (colon-separated hex, any case) accepted without asking. A different
     /// certificate is reported as `ServerCertificate.changed`.
     public var trustedCertificateFingerprints: [String] = []
+    /// Network Level Authentication. Off for old targets (Windows 7, IoT): TLS or standard RDP
+    /// security, and Windows checks the credentials on its own logon screen inside the session (a
+    /// wrong password then shows there instead of ending with `.logonFailed`).
+    public var nla = true
+    /// Connects to the console session (mstsc /admin).
+    public var consoleSession = false
+    /// Program started instead of the desktop ("" = desktop), and its working directory.
+    public var alternateShell = ""
+    public var workingDirectory = ""
+    /// Load-balancer routing token (.rdp "loadbalanceinfo", e.g. "tsv://MS Terminal Services Plugin.1.Farm").
+    public var loadBalanceInfo = ""
     public var audio: AudioPlayback = .local
     /// Microphone redirection; macOS asks for permission when a remote app first records.
     public var microphone = false
@@ -29,7 +40,9 @@ public struct SessionConfiguration: Sendable {
     /// Reconnects with backoff after a network drop (`.reconnecting` / `.reconnected`).
     public var autoReconnect = true
     /// FreeRDP's own state (license store; certificates are never stored there).
-    public var stateDirectory = URL.applicationSupportDirectory.appending(path: "Sprung/FreeRDP", directoryHint: .isDirectory)
+    public var stateDirectory = URL.applicationSupportDirectory
+        .appending(path: AppIdentity.supportFolderName, directoryHint: .isDirectory)
+        .appending(path: "FreeRDP", directoryHint: .isDirectory)
 
     public init(host: String, username: String, password: String, desktopSize: PixelSize) {
         self.host = host

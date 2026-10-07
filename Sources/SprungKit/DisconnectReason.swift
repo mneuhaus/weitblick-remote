@@ -15,6 +15,8 @@ public enum DisconnectReason: Equatable, Sendable {
     case accessDenied
     case certificateRejected
     case securityNegotiationFailed
+    /// NLA is off for this connection, but the server requires it.
+    case nlaRequired
     /// The server or an administrator ended the session.
     case serverEnded
     /// Another connection took over the Windows session.
@@ -48,6 +50,7 @@ public enum DisconnectReason: Equatable, Sendable {
         case .accessDenied: "Zugriff verweigert: Der Benutzer darf sich nicht per Remotedesktop anmelden."
         case .certificateRejected: "Zertifikat abgelehnt."
         case .securityNegotiationFailed: "Sichere Verbindung fehlgeschlagen (TLS/Sicherheitsaushandlung)."
+        case .nlaRequired: "Der Server verlangt Authentifizierung auf Netzwerkebene (NLA). Bitte NLA in der Verbindung einschalten."
         case .serverEnded: "Server hat getrennt."
         case .takenOver: "Die Sitzung wurde von einer anderen Verbindung übernommen."
         case .loggedOff: "Sitzung unter Windows beendet."
@@ -69,6 +72,7 @@ public enum DisconnectReason: Equatable, Sendable {
         case SprungDisconnectAccessDenied: self = .accessDenied
         case SprungDisconnectCertificateRejected: self = .certificateRejected
         case SprungDisconnectSecurityFailed: self = .securityNegotiationFailed
+        case SprungDisconnectNLARequired: self = .nlaRequired
         case SprungDisconnectServerEnded: self = .serverEnded
         case SprungDisconnectTakenOver: self = .takenOver
         case SprungDisconnectLoggedOff: self = .loggedOff

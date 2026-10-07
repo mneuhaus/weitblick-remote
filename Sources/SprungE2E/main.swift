@@ -63,7 +63,8 @@ func runOnce(_ vm: TestVMEnvironment, number: Int, evidence: URL) async throws -
     var configuration = SessionConfiguration(host: vm.host, username: vm.username, password: vm.password,
                                              desktopSize: PixelSize(width: 1440, height: 900))
     configuration.keyboardLayout = 0x0407 // German, like the German Mac layout the driver types with
-    configuration.audio = .local
+    // Run 1 plays audio on the Mac, runs 2 and 3 check that "remote" and "off" send nothing.
+    configuration.audio = AudioPlayback.allCases[(number - 1) % AudioPlayback.allCases.count]
     configuration.printers = true
     configuration.drives = [SharedDrive(name: FileScript.shareName, localPath: share)]
     guard let probe = SmokeProbe(configuration: configuration) else { throw E2EFailure("could not create session") }
@@ -74,7 +75,7 @@ func runOnce(_ vm: TestVMEnvironment, number: Int, evidence: URL) async throws -
 
     let scenario = try Scenario(vm: TestVM(), probe: probe, pasteboard: pasteboard, evidence: directory,
                                 share: share, scratch: scratch, freerdpLog: freerdpLog)
-    log("run \(number): connecting to \(vm.host) as \(vm.username)")
+    log("run \(number): connecting to \(vm.host) as \(vm.username), audio \(configuration.audio.rawValue)")
     probe.session.connect()
     try await probe.wait("connection", timeout: 30) { probe.isConnected }
     try await probe.waitForSettledFrame()
