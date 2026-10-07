@@ -105,6 +105,21 @@ Automatischer Abgleich in beide Richtungen: Text (Unicode, Zeilenenden), HTML, R
 (PNG/TIFF ↔ DIB), Dateien (FileGroupDescriptorW + FileContents, lazy, in beide Richtungen).
 Maximalgröße konfigurierbar (Standard 128 MB).
 
+## Fenster und Tabs (wie Jump, Teil von M4)
+- Ein Hauptfenster mit Tableiste oben: erster Tab „Übersicht“ (Verbindungsliste), dahinter je verbundener
+  Sitzung ein Tab mit dem Verbindungsnamen. Umsetzung mit nativen macOS-Fenstertabs (gemeinsamer
+  `tabbingIdentifier`, neue Sitzung per `addTabbedWindow`), damit Tab herausziehen = eigenes Fenster,
+  Fenster zusammenführen und Vollbild mit Tableiste beim Hovern ohne eigenen Code funktionieren.
+- Der Übersicht-Tab bleibt immer erster Tab und lässt sich nicht schließen, solange Sitzungen offen sind
+  (⌘W dort schließt nicht die App). Doppelklick auf eine Verbindung: läuft schon eine Sitzung, wird deren
+  Tab aktiviert statt eine zweite zu öffnen.
+- Sitzungstab schließen = Verbindung trennen (mit Rückfrage, abschaltbar). Statusanzeige im Tab
+  (verbindet / getrennt / Wiederverbinden).
+- Tab wechseln: Klick, ⌃⌥⌘← / ⌃⌥⌘→, ⌃⌥⌘1 = Übersicht, ⌃⌥⌘2…9 = Sitzungen (⌃⌥⌘ ist ohnehin lokal
+  reserviert; ⌃⇥ und ⌘⇧[ ] gehen in der Sitzung an Windows). Tabwechsel = Fokusverlust für die Tastatur
+  (alle Tasten loslassen).
+- Option „Sitzungen in eigenen Fenstern öffnen“ für Multi-Monitor-Arbeit.
+
 ## Migration aus Jump (Pflicht, Teil von M4)
 Alle Verbindungen aus Jump werden übernommen, beim ersten Start automatisch (mit Vorschau und
 Bestätigung) und jederzeit erneut über „Ablage → Aus Jump importieren“. Idempotent über Jumps `UniqueId`.
